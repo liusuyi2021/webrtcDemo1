@@ -12,13 +12,15 @@ export default defineConfig({
   ],
   server: {
     https: {
-      cert: fs.readFileSync(path.join(__dirname, "src/ssl/my.crt")),
-      key: fs.readFileSync(path.join(__dirname, "src/ssl/my.key")),
+      cert: fs.readFileSync(path.join(__dirname, "src/ssl/cert.crt")),
+      key: fs.readFileSync(path.join(__dirname, "src/ssl/cert.key")),
     },
-  },
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
-    }
-  }
+    // disableHostCheck: true,
+    // host: '0.0.0.0',
+   }
+  // resolve: {
+  //   alias: {
+  //     '@': fileURLToPath(new URL('./src', import.meta.url))
+  //   }
+  // }
 })
