@@ -4,13 +4,20 @@
   "private": true,
   "type": "module",
   "scripts": {
+<<<<<<< HEAD
     "dev": "vite --host 0.0.0.0",
+=======
+    "dev": "vite --host",
+>>>>>>> 4b4f327403194786859b432d751c59338d13d02e
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
+<<<<<<< HEAD
     "@element-plus/icons-vue": "^2.3.1",
     "element-plus": "^2.7.5",
+=======
+>>>>>>> 4b4f327403194786859b432d751c59338d13d02e
     "vue": "^3.4.21"
   },
   "devDependencies": {
