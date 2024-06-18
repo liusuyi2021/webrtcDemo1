@@ -4,20 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-<<<<<<< HEAD
     "dev": "vite --host 0.0.0.0",
-=======
-    "dev": "vite --host",
->>>>>>> 4b4f327403194786859b432d751c59338d13d02e
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
-<<<<<<< HEAD
     "@element-plus/icons-vue": "^2.3.1",
     "element-plus": "^2.7.5",
-=======
->>>>>>> 4b4f327403194786859b432d751c59338d13d02e
+    "pinia": "^2.1.7",
     "vue": "^3.4.21"
   },
   "devDependencies": {

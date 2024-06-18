@@ -2,7 +2,8 @@ package com.example.util;
 
 import com.alibaba.fastjson2.JSONObject;
 import lombok.extern.slf4j.Slf4j;
-
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
 import javax.websocket.RemoteEndpoint;
 import javax.websocket.Session;
 import java.io.IOException;
@@ -23,25 +24,21 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class WebSocketUtils {
 
     // 存储 websocket session
-    public static final ConcurrentHashMap<String, Session> ONLINE_USER_SESSIONS = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<String, WebSocketSession> ONLINE_USER_SESSIONS = new ConcurrentHashMap<>();
     //存储房间
     public static final ConcurrentHashMap<String, Set<String>> ROOM_USER_SET= new ConcurrentHashMap<>();
     /**
      * @param session 用户 session
      * @param message 发送内容
      */
-    public static void sendMessage(Session session, String message) {
+    public static void sendMessage(WebSocketSession session, String message) {
         if (session == null) {
-            return;
-        }
-        final RemoteEndpoint.Basic basic = session.getBasicRemote();
-        if (basic == null) {
             return;
         }
         synchronized(session) {
             try {
                 log.debug("发送消息："+message);
-                session.getBasicRemote().sendText(message);
+                session.sendMessage(new TextMessage(message));
             } catch (IOException e) {
                 log.error("sendMessage IOException ",e);
             }
@@ -51,33 +48,27 @@ public final class WebSocketUtils {
      * @param session 用户 session
      * @param message 发送内容
      */
-    public static void sendMessage(Session session, Map message) {
+    public static void sendMessage(WebSocketSession session, Map message) {
         if (session == null) {
             return;
         }
-        final RemoteEndpoint.Basic basic = session.getBasicRemote();
-        if (basic == null) {
-            return;
-        }
+
         synchronized(session) {
             try {
-                session.getBasicRemote().sendText(new JSONObject(message).toString());
+                session.sendMessage(new TextMessage(JSONObject.toJSONString(message)));
             } catch (IOException e) {
                 log.error("sendMessage IOException ",e);
             }
         }
     }
-    public static void sendMessage(Session session, List message) {
+    public static void sendMessage(WebSocketSession session, List message) {
         if (session == null) {
             return;
         }
-        final RemoteEndpoint.Basic basic = session.getBasicRemote();
-        if (basic == null) {
-            return;
-        }
+
         synchronized(session) {
             try {
-                session.getBasicRemote().sendText( String.join(", ", message));
+                session.sendMessage( new TextMessage(String.join(", ", message)));
             } catch (IOException e) {
                 log.error("sendMessage IOException ",e);
             }
@@ -98,7 +89,7 @@ public final class WebSocketUtils {
     public static void sendMessageAll(String roomId,String message) {
         Set<String> userSet = ROOM_USER_SET.getOrDefault(roomId, new HashSet<>());
         userSet.stream().forEach(userId -> {
-            Session session = ONLINE_USER_SESSIONS.getOrDefault(userId, null);
+            WebSocketSession session = ONLINE_USER_SESSIONS.getOrDefault(userId, null);
             if(session!=null)
             {
                 sendMessage(session, message);
@@ -120,7 +111,7 @@ public final class WebSocketUtils {
     public static void sendMessageAll(String roomId,Map message) {
         Set<String> userSet = ROOM_USER_SET.getOrDefault(roomId, new HashSet<>());
         userSet.stream().forEach(userId -> {
-            Session session = ONLINE_USER_SESSIONS.getOrDefault(userId, null);
+            WebSocketSession session = ONLINE_USER_SESSIONS.getOrDefault(userId, null);
             if(session!=null)
             {
                 sendMessage(session, message);
