@@ -28,6 +28,7 @@
     </div>
 </template>
 <script setup lang="ts">
+
 import { ref } from 'vue';
 import { initWebsocket, sendMessage } from './js/websocket.js';
 import { userStore } from '@/store/store.js';
@@ -44,7 +45,8 @@ let remoteVideo = ref()
 
 let offerSdp = sdpStore().offerSdp;
 let answerSdp = sdpStore().answerSdp;
-let candidate = iceStore().candidate;
+let offerCandidate = iceStore().offerCandidate;
+let answerCandidate = iceStore().answerCandidate;
 
 let caller = ref(false);//发起方
 let called = ref(false);//被叫方
@@ -118,6 +120,18 @@ let createOffer = async () => {
         });
     }
 
+
+    //通过监听onicecandidates事件来获取ICE候选信息
+    peerConnection.onicecandidate = async (event) => {
+        if (event.candidate) {
+            if (event.candidate.candidate.includes("relay")) {
+                console.log("Using TURN server for media relay.");
+            }
+            console.log("用户" + user.value + "生成并发送candidate", event.candidate);
+            sendMessage("offerCandidate", JSON.stringify(event.candidate));
+            //offerSdp = JSON.stringify(peerConnection.localDescription);
+        }
+    }
     //监听onaddstream来获取对方的音视频流
     peerConnection.onaddstream = (event) => {
         console.log("用户" + user.value + "收到对方音视频流", event.stream);
@@ -154,7 +168,7 @@ let createAnswer = async () => {
     await getLocalStream();
     //添加本地音视频流
     if (localStream) {
-        //peerConnection.addStream(localStream);//已过时
+        //peerConnection.addStream(localStream);
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
         });
@@ -167,7 +181,7 @@ let createAnswer = async () => {
                 console.log("Using TURN server for media relay.");
             }
             console.log("用户" + user.value + "生成并发送candidate", event.candidate);
-            sendMessage("candidate", JSON.stringify(event.candidate));
+            sendMessage("answerCandidate", JSON.stringify(event.candidate));
         }
     }
     //监听onaddstream来获取对方的音视频流
@@ -195,23 +209,24 @@ let createAnswer = async () => {
 
     //生成answer
     const answer = await peerConnection.createAnswer();
+
     //设置本地answer信息
     await peerConnection.setLocalDescription(answer);
-
 
     //显示answer
     answerSdp = JSON.stringify(answer);
 
     //发送answer
     sendMessage("answer", JSON.stringify(answer));
-    console.log("用户" + user.value + "生成并发送answer", answer)
+    console.log("用户" + user.value + "生成并发送answer" , answer)
 }
 //设置远端answer信息
 let setAnswer = async () => {
     await peerConnection.setRemoteDescription(JSON.parse(answerSdp));
 }
 //设置远端candidate信息
-let setCandidate = async (event) => {
+let sendCandidate = async (event) => {
+    console.log("********************************************")
     await peerConnection.addIceCandidate(JSON.parse(event));
 }
 //挂断
@@ -315,7 +330,7 @@ let getWebsocketData = (e) => {
                 //用户B收到用户A的offer
                 if (called.value) {
                     offerSdp = message.message;
-                    console.log("接收到用户" + userId + "的offer", JSON.parse(offerSdp));
+                    console.log("接收到用户" + userId + "的offer" , JSON.parse(offerSdp));
                     createAnswer();
                 }
                 break;
@@ -323,15 +338,22 @@ let getWebsocketData = (e) => {
                 //用户B收到用户A的answer
                 if (caller.value) {
                     answerSdp = message.message;
-                    console.log("接收到用户" + userId + "的answer", JSON.parse(answerSdp));
+                    console.log("接收到用户" + userId + "的answer" , JSON.parse(answerSdp));
                     setAnswer();
                 }
                 break;
-            case "candidate":
+            case "offerCandidate":
+                if (called.value) {
+                    offerCandidate = message.message;
+                    console.log("接收到用户" + userId + "的candidate" , JSON.parse(offerCandidate));
+                    sendCandidate(offerCandidate);
+                }
+                break;
+            case "answerCandidate":
                 if (caller.value) {
-                    candidate = message.message;
-                    console.log("接收到用户" + userId + "的candidate", JSON.parse(candidate));
-                    setCandidate(candidate);
+                    answerCandidate = message.message;
+                    console.log("接收到用户" + userId + "的candidate" , JSON.parse(answerCandidate));
+                    sendCandidate(answerCandidate);
                 }
                 break;
             case "heart":
