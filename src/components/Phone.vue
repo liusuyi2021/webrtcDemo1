@@ -83,6 +83,19 @@ let getLocalStream = async () => {
         });
 }
 
+let createPeer = async () => {
+    peerConnection = new RTCPeerConnection({
+        iceServers: [{
+            urls: "stun:stun.l.google.com:19302",
+        },
+        {
+            urls: "turn:192.168.2.15:3478",
+            username: "myuser",
+            credential: "mypass"
+        }
+        ]
+    });
+}
 
 //请求视频通话
 let callRemote = async () => {
@@ -101,15 +114,8 @@ let acceptCall = async () => {
 let createOffer = async () => {
 
     //创建自己的RTCPeerConnection
-    peerConnection = new RTCPeerConnection({
-        iceServers: [
-            {
-                urls: "turn:192.168.2.15:3478",
-                username: "myuser",
-                credential: "mypass"
-            }
-        ]
-    });
+    createPeer();
+
     //添加本地音视频流
     if (localStream) {
         //peerConnection.addStream(localStream)
@@ -141,15 +147,7 @@ let createOffer = async () => {
 //创建发送answer
 let createAnswer = async () => {
     //创建自己的RTCPeerConnection
-    peerConnection = new RTCPeerConnection({
-        iceServers: [
-            {
-                urls: "turn:192.168.2.15:3478",
-                username: "myuser",
-                credential: "mypass"
-            }
-        ]
-    });
+    createPeer();
     //获取本地音视频流
     await getLocalStream();
     //添加本地音视频流
@@ -337,9 +335,21 @@ let getWebsocketData = (e) => {
             case "heart":
                 break;
             case "disconnect":
+                // 关闭RTC连接
+                if (peerConnection) {
+                    peerConnection.close();
+                }
+
+                // 清理DOM元素和相关变量
+                remoteVideo.value.srcObject = null;
+                remoteVideo.value.src = '';
+                remoteStream = null;
+                peerConnection = null;
+
+                // 重置按钮状态
+                callButton.value = true;
                 answerButton.value = false;
                 disconnectButton.value = false;
-                callButton.value = true;
                 break;
         }
     }
