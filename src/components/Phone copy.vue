@@ -22,13 +22,12 @@
             <el-input v-model="room" vlue="123" placeholder="请输入房间号"></el-input>
             <el-input v-model="user" vlue="123" placeholder="请输入用户ID"></el-input>
             <el-button id="enter-room" type="primary" round @click="enterRoom">加入房间</el-button>
-            <el-button id="share-screen" type="primary" round @click="shareScreen">共享屏幕</el-button>
-            <el-button id="video-call" type="primary" round @click="videoCall">视频通话</el-button>
+
+            <el-button id="change" type="primary" round @click="change">{{ changeValue }}</el-button>
         </div>
     </div>
 </template>
 <script setup lang="ts">
-
 import { ref } from 'vue';
 import { initWebsocket, sendMessage } from './js/websocket.js';
 import { userStore } from '@/store/store.js';
@@ -43,11 +42,13 @@ let peerConnection;
 let localVideo = ref()
 let remoteVideo = ref()
 
+let changeValue = ref("共享屏幕")
+
+
 let offerSdp = sdpStore().offerSdp;
 let answerSdp = sdpStore().answerSdp;
 let offerCandidate = iceStore().offerCandidate;
 let answerCandidate = iceStore().answerCandidate;
-
 let caller = ref(false);//发起方
 let called = ref(false);//被叫方
 let calling = ref(false);//呼叫中
@@ -73,7 +74,7 @@ let getLocalStream = async () => {
     // localVideo.value.play();
     // localStream = stream;
     // return stream;
-    await navigator.mediaDevices.getUserMedia({ audio: false, video: true })
+    await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
         .then(stream => {
             localVideo.value.srcObject = stream;
             localVideo.value.play();
@@ -85,6 +86,17 @@ let getLocalStream = async () => {
         });
 }
 
+let createPeer = async () => {
+    peerConnection = new RTCPeerConnection({
+        iceServers: [
+            {
+                urls: "turn:111.40.46.199:3478",
+                username: "myuser",
+                credential: "mypass"
+            }
+        ]
+    });
+}
 
 //请求视频通话
 let callRemote = async () => {
@@ -103,15 +115,8 @@ let acceptCall = async () => {
 let createOffer = async () => {
 
     //创建自己的RTCPeerConnection
-    peerConnection = new RTCPeerConnection({
-        iceServers: [
-            {
-                urls: "turn:192.168.2.15:3478",
-                username: "myuser",
-                credential: "mypass"
-            }
-        ]
-    });
+    createPeer();
+
     //添加本地音视频流
     if (localStream) {
         //peerConnection.addStream(localStream)
@@ -119,17 +124,14 @@ let createOffer = async () => {
             peerConnection.addTrack(track, localStream);
         });
     }
-
-
     //通过监听onicecandidates事件来获取ICE候选信息
     peerConnection.onicecandidate = async (event) => {
         if (event.candidate) {
             if (event.candidate.candidate.includes("relay")) {
                 console.log("Using TURN server for media relay.");
             }
-            console.log("用户" + user.value + "生成并发送candidate", event.candidate);
+            console.log("用户" + user.value + "生成并发送offerCandidate", event.candidate);
             sendMessage("offerCandidate", JSON.stringify(event.candidate));
-            //offerSdp = JSON.stringify(peerConnection.localDescription);
         }
     }
     //监听onaddstream来获取对方的音视频流
@@ -140,6 +142,7 @@ let createOffer = async () => {
         remoteVideo.value.srcObject = event.stream;
         remoteVideo.value.play();
     }
+
     //创建offer
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
@@ -155,78 +158,71 @@ let createOffer = async () => {
 //创建发送answer
 let createAnswer = async () => {
     //创建自己的RTCPeerConnection
-    peerConnection = new RTCPeerConnection({
-        iceServers: [
-            {
-                urls: "turn:192.168.2.15:3478",
-                username: "myuser",
-                credential: "mypass"
-            }
-        ]
-    });
+    createPeer();
     //获取本地音视频流
     await getLocalStream();
     //添加本地音视频流
     if (localStream) {
-        //peerConnection.addStream(localStream);
+        //peerConnection.addStream(localStream);//已过时
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
         });
     }
-
     //通过监听onicecandidates事件来获取ICE候选信息
     peerConnection.onicecandidate = async (event) => {
         if (event.candidate) {
             if (event.candidate.candidate.includes("relay")) {
                 console.log("Using TURN server for media relay.");
             }
-            console.log("用户" + user.value + "生成并发送candidate", event.candidate);
+            console.log("用户" + user.value + "生成并发送answerCandidate", event.candidate);
             sendMessage("answerCandidate", JSON.stringify(event.candidate));
         }
     }
     //监听onaddstream来获取对方的音视频流
-    // peerConnection.onaddstream = (event) => {
+    peerConnection.onaddstream = (event) => {
+        console.log("用户" + user.value + "收到对方音视频流", event.stream);
+        communicating.value = true;
+        calling.value = false;
+        remoteVideo.value.srcObject = event.stream;
+        remoteVideo.value.play();
+    }
+
+    //监听addEventListener来获取对方的音视频流
+    // peerConnection.addEventListener('track', (event) => {
     //     console.log("用户" + user.value + "收到对方音视频流");
     //     communicating.value = true;
     //     calling.value = false;
-    //     remoteVideo.value.srcObject = event.stream;
-    //     remoteVideo.value.play();
-    // }
-    //监听addEventListener来获取对方的音视频流
-    peerConnection.addEventListener('track', (event) => {
-        console.log("用户" + user.value + "收到对方音视频流");
-        communicating.value = true;
-        calling.value = false;
-        if (remoteVideo.value.srcObject !== event.streams[0]) {
-            remoteVideo.value.srcObject = event.streams[0];
-            remoteVideo.value.play();
-        }
-
-    });
+    //     if (remoteVideo.value.srcObject !== event.streams[0]) {
+    //         remoteVideo.value.srcObject = event.streams[0];
+    //         remoteVideo.value.play();
+    //     }
+    // });
 
     //设置远端描述信息
     await peerConnection.setRemoteDescription(JSON.parse(offerSdp))
 
     //生成answer
     const answer = await peerConnection.createAnswer();
-
     //设置本地answer信息
     await peerConnection.setLocalDescription(answer);
+
 
     //显示answer
     answerSdp = JSON.stringify(answer);
 
     //发送answer
     sendMessage("answer", JSON.stringify(answer));
-    console.log("用户" + user.value + "生成并发送answer" , answer)
+    console.log("用户" + user.value + "生成并发送answer", answer)
 }
 //设置远端answer信息
 let setAnswer = async () => {
     await peerConnection.setRemoteDescription(JSON.parse(answerSdp));
 }
 //设置远端candidate信息
-let sendCandidate = async (event) => {
-    console.log("********************************************")
+let setCandidate = async (event) => {
+    if (peerConnection.remoteDescription == null) {
+        return;
+    }
     await peerConnection.addIceCandidate(JSON.parse(event));
 }
 //挂断
@@ -252,24 +248,28 @@ let disconnect = async () => {
 //分享本地屏幕
 let shareScreen = async () => {
     let newStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    if (newStream) {
+        localStream = newStream;
+        // 将视频流传入viedo控件           
+        localVideo.value.srcObject = localStream;
 
-    localStream = newStream;
-    // 将视频流传入viedo控件           
-    localVideo.value.srcObject = localStream;
+        //本地视频流轨道加入
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
 
-    //本地视频流轨道加入
-    localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
-    });
+        localVideo.value.play();
 
-    localVideo.value.play();
-
-    // 替换本地视频流轨道
-    localStream.getVideoTracks().forEach(track => {
-        peerConnection.getSenders().find(sender => sender.track.kind === 'video')
-            .replaceTrack(track)
-    })
-
+        // 替换本地视频流轨道
+        localStream.getVideoTracks().forEach(track => {
+            peerConnection.getSenders().find(sender => sender.track.kind === 'video')
+                .replaceTrack(track)
+        })
+        return true;
+    }
+    else {
+        return false;
+    }
 };
 
 //切换视频通话
@@ -293,7 +293,25 @@ let videoCall = async () => {
     })
 
 };
-
+let flag = -1;
+let change = async () => {
+    if (flag < 0) {
+        let result = await shareScreen();
+        if (result) {
+            changeValue.value = "视频通话";
+            flag = 1;
+        }
+        else {
+            videoCall();
+            changeValue.value = "共享屏幕";
+        }
+    }
+    else {
+        videoCall();
+        changeValue.value = "共享屏幕";
+        flag = -1;
+    }
+}
 //接收websocket数据
 let getWebsocketData = (e) => {
     let message = e.detail
@@ -330,7 +348,7 @@ let getWebsocketData = (e) => {
                 //用户B收到用户A的offer
                 if (called.value) {
                     offerSdp = message.message;
-                    console.log("接收到用户" + userId + "的offer" , JSON.parse(offerSdp));
+                    console.log("接收到用户" + userId + "的offer", JSON.parse(offerSdp));
                     createAnswer();
                 }
                 break;
@@ -338,30 +356,42 @@ let getWebsocketData = (e) => {
                 //用户B收到用户A的answer
                 if (caller.value) {
                     answerSdp = message.message;
-                    console.log("接收到用户" + userId + "的answer" , JSON.parse(answerSdp));
+                    console.log("接收到用户" + userId + "的answer", JSON.parse(answerSdp));
                     setAnswer();
-                }
-                break;
-            case "offerCandidate":
-                if (called.value) {
-                    offerCandidate = message.message;
-                    console.log("接收到用户" + userId + "的candidate" , JSON.parse(offerCandidate));
-                    sendCandidate(offerCandidate);
                 }
                 break;
             case "answerCandidate":
                 if (caller.value) {
                     answerCandidate = message.message;
-                    console.log("接收到用户" + userId + "的candidate" , JSON.parse(answerCandidate));
-                    sendCandidate(answerCandidate);
+                    console.log("接收到1用户" + userId + "的candidate", JSON.parse(answerCandidate));
+                    setCandidate(answerCandidate);
+                }
+                break;
+            case "offerCandidate":
+                if (called.value) {
+                    offerCandidate = message.message;
+                    console.log("接收到用户" + userId + "的candidate", JSON.parse(offerCandidate));
+                    setCandidate(offerCandidate);
                 }
                 break;
             case "heart":
                 break;
             case "disconnect":
+                // 关闭RTC连接
+                if (peerConnection) {
+                    peerConnection.close();
+                }
+
+                // 清理DOM元素和相关变量
+                remoteVideo.value.srcObject = null;
+                remoteVideo.value.src = '';
+                remoteStream = null;
+                peerConnection = null;
+
+                // 重置按钮状态
+                callButton.value = true;
                 answerButton.value = false;
                 disconnectButton.value = false;
-                callButton.value = true;
                 break;
         }
     }

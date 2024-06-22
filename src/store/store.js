@@ -29,7 +29,8 @@ export const sdpStore = defineStore("sdp", {
 export const iceStore = defineStore("ice", {
   state: () => {
     return {
-      candidate: "",
+      offerCandidate: "",
+      answerCandidate: "",
     };
   },
 });
