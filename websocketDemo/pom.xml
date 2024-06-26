@@ -64,7 +64,7 @@
                 <version>${spring-boot.version}</version>
                 <configuration>
                     <mainClass>com.example.WebsocketDemoApplication</mainClass>
-                    <skip>true</skip>
+
                 </configuration>
                 <executions>
                     <execution>

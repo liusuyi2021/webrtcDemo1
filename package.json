@@ -10,13 +10,16 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
-    "element-plus": "^2.7.5",
+    "element-plus": "^2.7.6",
+    "map": "^1.0.1",
     "peerjs": "^1.5.4",
     "pinia": "^2.1.7",
+    "recordrtc": "^5.6.2",
     "vue": "^3.4.21"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.4",
+    "sass": "^1.77.6",
     "vite": "^5.2.8"
   }
 }

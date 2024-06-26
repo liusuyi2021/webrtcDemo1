@@ -1,6 +1,7 @@
 package com.example.util;
 
 import com.alibaba.fastjson2.JSONObject;
+import com.example.domain.User;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -26,7 +27,7 @@ public final class WebSocketUtils {
     // 存储 websocket session
     public static final ConcurrentHashMap<String, WebSocketSession> ONLINE_USER_SESSIONS = new ConcurrentHashMap<>();
     //存储房间
-    public static final ConcurrentHashMap<String, Set<String>> ROOM_USER_SET= new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<String, Set<User>> ROOM_USER_SET= new ConcurrentHashMap<>();
     /**
      * @param session 用户 session
      * @param message 发送内容
@@ -87,9 +88,9 @@ public final class WebSocketUtils {
      * @param message
      */
     public static void sendMessageAll(String roomId,String message) {
-        Set<String> userSet = ROOM_USER_SET.getOrDefault(roomId, new HashSet<>());
-        userSet.stream().forEach(userId -> {
-            WebSocketSession session = ONLINE_USER_SESSIONS.getOrDefault(userId, null);
+        Set<User> userSet = ROOM_USER_SET.getOrDefault(roomId, new HashSet<>());
+        userSet.stream().forEach(user -> {
+            WebSocketSession session = ONLINE_USER_SESSIONS.getOrDefault(user.getId(), null);
             if(session!=null)
             {
                 sendMessage(session, message);
@@ -109,9 +110,9 @@ public final class WebSocketUtils {
      * @param message
      */
     public static void sendMessageAll(String roomId,Map message) {
-        Set<String> userSet = ROOM_USER_SET.getOrDefault(roomId, new HashSet<>());
-        userSet.stream().forEach(userId -> {
-            WebSocketSession session = ONLINE_USER_SESSIONS.getOrDefault(userId, null);
+        Set<User> userSet = ROOM_USER_SET.getOrDefault(roomId, new HashSet<>());
+        userSet.stream().forEach(user -> {
+            WebSocketSession session = ONLINE_USER_SESSIONS.getOrDefault(user.getId(), null);
             if(session!=null)
             {
                 sendMessage(session, message);

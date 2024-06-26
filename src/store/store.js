@@ -4,16 +4,34 @@ export const userStore = defineStore("store", {
     return {
       roomId: "",
       userId: "",
+      nickName: "",
+      list: [],
     };
   },
   getters: {
-      getRoomId: (state) => state.roomId,
-      getUserId: (state) => state.userId,
+    getRoomId: (state) => state.roomId,
+    getUserId: (state) => state.userId,
   },
   actions: {
-    setWSConfig(_roomId, _userId) {
+    setWSConfig(_roomId, _userId,_nickName) {
       this.roomId = _roomId;
       this.userId = _userId;
+      this.nickName = _nickName;
+    },
+    setUsers(newList) {
+      this.list = newList;
+    },
+    addUser(item) {
+      this.list.push(item);
+    },
+    removeUser(index) {
+      this.list.splice(index, 1);
+    },
+    updateUser(index, newItem) {
+      this.list[index] = newItem;
+    },
+    clearList() {
+      this.list = [];
     },
   },
   // your other options...
