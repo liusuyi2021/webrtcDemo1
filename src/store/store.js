@@ -11,6 +11,7 @@ export const userStore = defineStore("store", {
   getters: {
     getRoomId: (state) => state.roomId,
     getUserId: (state) => state.userId,
+    getUsers: (state) => state.users,
   },
   actions: {
     setWSConfig(_roomId, _userId,_nickName) {
@@ -18,8 +19,9 @@ export const userStore = defineStore("store", {
       this.userId = _userId;
       this.nickName = _nickName;
     },
-    setUsers(newList) {
-      this.list = newList;
+    setUsers(users) {
+      this.list = users;
+      console.log(this.list);
     },
     addUser(item) {
       this.list.push(item);
