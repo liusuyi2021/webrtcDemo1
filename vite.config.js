@@ -9,10 +9,12 @@ import path from "path";
 export default defineConfig({
   plugins: [vue()],
   server: {
+    host: '0.0.0.0', // 允许从外部访问
+    // 启用 HTTPS
     https: {
-      cert: fs.readFileSync(path.join(__dirname, "src/ssl/my.crt")),
-      key: fs.readFileSync(path.join(__dirname, "src/ssl/my.key")),
-    }
+      cert: fs.readFileSync(path.join(__dirname, "src/ssl/zabbix.crt")),
+      key: fs.readFileSync(path.join(__dirname, "src/ssl/zabbix.key")),
+    },
   },
   resolve: {
     alias: {
