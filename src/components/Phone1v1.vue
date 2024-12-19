@@ -158,11 +158,21 @@ let getLocalStream = async () => {
 
 //创建RTCPeerConnection实例
 let createPeer = async () => {
-    peerConnection = new RTCPeerConnection();
+    peerConnection = new RTCPeerConnection({
+        iceServers: [
+            {
+                urls: 'turn:111.40.46.199:3478', // 替换为你自己的 TURN 服务器
+                username: 'admin', // TURN 服务器用户名
+                credential: '123456' // TURN 服务器密码
+            }
+        ]
+    });
+
     localDataChannel = peerConnection.createDataChannel("dataChannel");
     localDataChannel.onopen = () => {
         console.log("DataChannel已打开");
     }
+
     peerConnection.ondatachannel = (event) => {
         remoteDataChannel = event.channel;
         remoteDataChannel.onmessage = (event) => {
@@ -228,9 +238,14 @@ let createOffer = async () => {
     //通过监听onicecandidates事件来获取ICE候选信息
     peerConnection.onicecandidate = async (event) => {
         if (event.candidate) {
+            console.log("发现新的 ICE 候选项：", event.candidate);
             setTimeout(() => {
                 if (event.candidate.candidate.includes("relay")) {
                     console.log("Using TURN server for media relay.");
+                }
+                // 检查是否是通过 TURN（relay）生成的候选
+                if (event.candidate.type === 'relay' && event.candidate.port === 3478) {
+                    console.log("使用了 TURN 服务器的 3478 端口：", event.candidate);
                 }
                 console.log("用户" + user.value + "生成并发送至用户" + userTarget.value + "offerCandidate", event.candidate);
                 sendMessage("offerCandidate", userTarget.value, JSON.stringify(event.candidate));
@@ -275,9 +290,14 @@ let createAnswer = async () => {
     //通过监听onicecandidates事件来获取ICE候选信息
     peerConnection.onicecandidate = async (event) => {
         if (event.candidate) {
+            console.log("发现新的 ICE 候选项：", event.candidate);
             setTimeout(() => {
                 if (event.candidate.candidate.includes("relay")) {
                     console.log("Using TURN server for media relay.");
+                }
+                // 检查是否是通过 TURN（relay）生成的候选
+                if (event.candidate.type === 'relay' && event.candidate.port === 3478) {
+                    console.log("使用了 TURN 服务器的 3478 端口：", event.candidate);
                 }
                 console.log("用户" + user.value + "生成并发送至用户" + userTarget.value + "answerCandidate", event.candidate);
                 sendMessage("answerCandidate", userTarget.value, JSON.stringify(event.candidate));
@@ -359,21 +379,21 @@ let disconnect = async () => {
 
 //分享屏幕
 let shareScreen = async () => {
-     screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
     if (screenStream) {
         localStream = screenStream;
         // 将视频流传入viedo控件           
         localVideo.value.srcObject = localStream;
 
         //本地视频流轨道加入
-       localStream.getTracks().forEach(track => {
-           peerConnection.addTrack(track, localStream);
-       });
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
 
         localVideo.value.play();
 
         // 替换本地视频流轨道
-     
+
         localStream.getVideoTracks().forEach(track => {
             peerConnection.getSenders().find(sender => sender.track.kind === 'video')
                 .replaceTrack(track)
@@ -384,14 +404,14 @@ let shareScreen = async () => {
         return false;
     }
 };
-let stopScreenShare=async()=> {
-      if (screenStream) {
+let stopScreenShare = async () => {
+    if (screenStream) {
         const tracks = screenStream.getTracks();
         tracks.forEach(track => track.stop());
         screenStream = null;
         localVideo.value.srcObject = null;
-      }
     }
+}
 //视频通话
 let videoCall = async () => {
     let newStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
