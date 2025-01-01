@@ -37,7 +37,7 @@ public class MyWebSocketHandler extends TextWebSocketHandler {
         messages.put("userId", userId);
         messages.put("users", userSet);
         messages.put("targetUserId", targetUserId);
-        messages.put("message", content);
+        messages.put("content", content);
         if (targetUserId != null && !targetUserId.equals("")) {
             WebSocketSession targetSession = WebSocketUtils.ONLINE_USER_SESSIONS.get(targetUserId);
             WebSocketUtils.sendMessage(targetSession, messages);
@@ -72,7 +72,7 @@ public class MyWebSocketHandler extends TextWebSocketHandler {
         messages.put("roomId", roomId);
         messages.put("userId", userId);
         messages.put("users", userSet);
-        messages.put("message", message);
+        messages.put("content", message);
 
         WebSocketUtils.sendMessageAll(roomId, messages);
     }
@@ -102,7 +102,7 @@ public class MyWebSocketHandler extends TextWebSocketHandler {
         messages.put("roomId", roomId);
         messages.put("userId", userId);
         messages.put("users", userSet);
-        messages.put("message", message);
+        messages.put("content", message);
         WebSocketUtils.sendMessageAll(roomId, messages);
         log.info("消息：" + message);
         try {

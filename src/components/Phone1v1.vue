@@ -306,13 +306,39 @@ let createAnswer = async () => {
         }
     }
     //监听onaddstream来获取对方的音视频流
-    peerConnection.onaddstream = (event) => {
-        console.log("用户" + user.value + "收到对方音视频流", event.stream);
+    // peerConnection.onaddstream = (event) => {
+    //     console.log("用户" + user.value + "收到对方音视频流", event.stream);
+    //     communicating.value = true;
+    //     calling.value = false;
+    //     remoteVideo.value.srcObject = event.stream;
+    //     remoteVideo.value.play();
+    // }
+    peerConnection.addEventListener('track', (event) => {
+        console.log("用户" + user.value + "收到对方音视频流");
         communicating.value = true;
         calling.value = false;
-        remoteVideo.value.srcObject = event.stream;
-        remoteVideo.value.play();
-    }
+
+        // 遍历所有的流
+        event.streams.forEach(stream => {
+            stream.getTracks().forEach(track => {
+                if (track.kind === 'video') {
+                    // 处理视频轨道
+                    if (remoteVideo.value.srcObject !== stream) {
+                        remoteVideo.value.srcObject = stream;
+                        remoteVideo.value.play();
+                    }
+                } else if (track.kind === 'audio') {
+                    // 处理音频轨道
+                    // 这里可以根据需求做其他处理，例如播放音频
+                    console.log("收到音频流", track);
+                    // 创建新的音频上下文对象播放音频
+                    const audio = new Audio();
+                    audio.srcObject = stream;
+                    audio.play();
+                }
+            });
+        });
+    });
 
     //监听addEventListener来获取对方的音视频流
     // peerConnection.addEventListener('track', (event) => {
@@ -389,11 +415,9 @@ let shareScreen = async () => {
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
         });
-
         localVideo.value.play();
 
         // 替换本地视频流轨道
-
         localStream.getVideoTracks().forEach(track => {
             peerConnection.getSenders().find(sender => sender.track.kind === 'video')
                 .replaceTrack(track)
@@ -414,7 +438,7 @@ let stopScreenShare = async () => {
 }
 //视频通话
 let videoCall = async () => {
-    let newStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    let newStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
     localStream = newStream;
     // 将视频流传入viedo控件           
     localVideo.value.srcObject = localStream;
@@ -463,6 +487,7 @@ let getWebsocketData = (e) => {
     let type = message.type;
     let users = message.users;
     let targetUserId = message.targetUserId;
+    let content=message.content;
     //判断是否是当前房间
     if (roomId === room.value) {
         switch (type) {
@@ -472,7 +497,7 @@ let getWebsocketData = (e) => {
                 answerButtonShow.value = true;
                 userTarget.value = userId; //请求用户作为目标用户
                 console.log("用户" + userId + "请求用户" + targetUserId + "视频通话");
-                if (message.message === "请求回拨视频通话") {
+                if (content === "请求回拨视频通话") {
                     callback.value = true;
                 }
                 callButtonShow.value = false;
@@ -498,7 +523,7 @@ let getWebsocketData = (e) => {
                 break;
             case "offer":
 
-                offerSdp = message.message;
+                offerSdp = content;
                 if (callback.value) {
                     if (caller.value) {
                         console.log("接收到用户" + userId + "的offer", JSON.parse(offerSdp));
@@ -515,7 +540,7 @@ let getWebsocketData = (e) => {
                 break;
             case "answer":
 
-                answerSdp = message.message;
+                answerSdp = content;
                 if (callback.value) {
                     if (called.value) {
                         console.log("接收到用户" + userId + "的answer", JSON.parse(answerSdp));
@@ -531,7 +556,7 @@ let getWebsocketData = (e) => {
                 }
                 break;
             case "answerCandidate":
-                answerCandidate = message.message;
+                answerCandidate = content;
                 if (callback.value) {
                     if (called.value) {
                         console.log("接收到1用户" + userId + "的candidate", JSON.parse(answerCandidate));
@@ -545,7 +570,7 @@ let getWebsocketData = (e) => {
                 }
                 break;
             case "offerCandidate":
-                offerCandidate = message.message;
+                offerCandidate = content;
                 if (callback.value) {
                     if (caller.value) {
                         console.log("接收到用户" + userId + "的candidate", JSON.parse(offerCandidate));
@@ -800,61 +825,28 @@ const getSeekableBlob = async (inputBlob, mediaType, callback) => {
 video {
     width: 100%;
     max-width: 400px;
+    max-height: 300px;
     margin-bottom: 20px;
     border-radius: 10px;
     background-color: black;
 
 }
 
-.showContainer {
-    display: flex;
-    justify-content: center;
-    /* 水平居中 */
-    align-items: center;
-    /* 垂直居中 */
-    height: 100%;
-    /* 设定高度，可以根据需要调整 */
-    margin: 0;
-}
-
-.video-container {
-    border: 1px solid #1ca8e9;
-    padding: 2px;
-    position: sticky;
-    object-fit: cover;
-}
-
 #local-video {
     flex: 1;
-    object-fit: fill;
+    object-fit: contain;
     width: 100%;
     height: 100%;
 }
 
 #remote-video {
     flex: 1;
-    object-fit: fill;
+    object-fit: contain;
     width: 100%;
     height: 100%;
 }
 
-#remote-video-container {
-    width: 250px;
-    height: 250px;
-    position: absolute;
-    border: 5px solid #920697;
-    top: 30px;
-    /* 根据需要调整位置 */
-    right: 30px;
-    /* 根据需要调整位置 */
-    z-index: 1;
-    /* 确保按钮在video之上 */
-}
 
-#local-video-container {
-    width: 600px;
-    height: 400px;
-}
 
 textarea {
     width: 100%;
