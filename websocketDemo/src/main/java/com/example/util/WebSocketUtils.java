@@ -90,7 +90,7 @@ public final class WebSocketUtils {
     public static void sendMessageAll(String roomId,String message) {
         Set<User> userSet = ROOM_USER_SET.getOrDefault(roomId, new HashSet<>());
         userSet.stream().forEach(user -> {
-            WebSocketSession session = ONLINE_USER_SESSIONS.getOrDefault(user.getId(), null);
+            WebSocketSession session = ONLINE_USER_SESSIONS.getOrDefault(user.getUserId(), null);
             if(session!=null)
             {
                 sendMessage(session, message);
@@ -112,7 +112,7 @@ public final class WebSocketUtils {
     public static void sendMessageAll(String roomId,Map message) {
         Set<User> userSet = ROOM_USER_SET.getOrDefault(roomId, new HashSet<>());
         userSet.stream().forEach(user -> {
-            WebSocketSession session = ONLINE_USER_SESSIONS.getOrDefault(user.getId(), null);
+            WebSocketSession session = ONLINE_USER_SESSIONS.getOrDefault(user.getUserId(), null);
             if(session!=null)
             {
                 sendMessage(session, message);

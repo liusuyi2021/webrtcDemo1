@@ -26,89 +26,113 @@ public class MyWebSocketHandler extends TextWebSocketHandler {
         System.out.println("Receive: " + session.getId() + "-->" + textMessage.getPayload());
         Map jsonMap = JSONObject.parseObject(textMessage.getPayload(), Map.class);
         String type = (String) jsonMap.get("type");
+        String roomId = (String) jsonMap.get("roomId");
         String targetUserId = (String) jsonMap.get("targetUserId");
-        String content = (String) jsonMap.get("content");
         String userId = (String) session.getAttributes().get("userId");
-        String roomId = (String) session.getAttributes().get("roomId");
-        Set<User> userSet = WebSocketUtils.ROOM_USER_SET.getOrDefault(roomId, new HashSet<>());
-        Map<String, Object> messages = new HashMap<>();
-        messages.put("type", type);
-        messages.put("roomId", roomId);
-        messages.put("userId", userId);
-        messages.put("users", userSet);
-        messages.put("targetUserId", targetUserId);
-        messages.put("content", content);
-        if (targetUserId != null && !targetUserId.equals("")) {
-            WebSocketSession targetSession = WebSocketUtils.ONLINE_USER_SESSIONS.get(targetUserId);
-            WebSocketUtils.sendMessage(targetSession, messages);
-        } else {
-            WebSocketUtils.sendMessageAll(roomId, messages);
+        String nickName = (String) session.getAttributes().get("nickName");
+        String content = (String) jsonMap.get("content");
+        switch (type) {
+            case "invite":
+                User user = new User(userId, nickName, roomId, targetUserId);
+                inviteRoom(user);
+                break;
+            case "join":
+                user = new User(userId, nickName, roomId, targetUserId);
+                joinRoom(user);
+                break;
+            case "leave":
+                user = new User(userId, nickName, roomId, targetUserId);
+                leaveRoom(user);
+                break;
+            default:
+                break;
         }
-        log.info("房间[" + roomId + "]收到用户[" + userId + "]消息：" + content);
+        if (roomId != null) {
+            Set<User> userSet = WebSocketUtils.ROOM_USER_SET.getOrDefault(roomId, new HashSet<>());
+            Map<String, Object> messages = new HashMap<>();
+            messages.put("type", type);
+            messages.put("roomId", roomId);
+            messages.put("userId", userId);
+            messages.put("users", userSet);
+            messages.put("targetUserId", targetUserId);
+            messages.put("content", content);
+            if (targetUserId != null) {
+                WebSocketSession targetSession = WebSocketUtils.ONLINE_USER_SESSIONS.get(targetUserId);
+                WebSocketUtils.sendMessage(targetSession, messages);
+            } else {
+                WebSocketUtils.sendMessageAll(roomId, messages);
+            }
+        }
+        //  log.info("房间[" + roomId + "]收到用户[" + userId + "]消息：" + content);
     }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
-        System.out.println("Connected: " + session.getId());
-        String nickName = (String) session.getAttributes().get("nickName");
         String userId = (String) session.getAttributes().get("userId");
-        String roomId = (String) session.getAttributes().get("roomId");
         // 处理接收到的消息
         WebSocketUtils.ONLINE_USER_SESSIONS.put(userId, session);
-        // 获取房间用户列表
-        Set<User> users = WebSocketUtils.ROOM_USER_SET.getOrDefault(roomId, new HashSet<>());
-        User user = new User();
-        user.setId(userId);
-        user.setNickName(nickName);
-        user.setRoomId(roomId);
-        users.add(user);
-        WebSocketUtils.ROOM_USER_SET.put(roomId, users);
-        String message = "用户[" + userId + "]进入了房间[" + roomId + "]";
-        log.info(message);
-        Set<User> userSet = WebSocketUtils.ROOM_USER_SET.get(roomId);
-        log.info("房间[" + roomId + "]用户总数：" + userSet.size());
-        Map<String, Object> messages = new HashMap<>();
-        messages.put("type", "join");
-        messages.put("roomId", roomId);
-        messages.put("userId", userId);
-        messages.put("users", userSet);
-        messages.put("content", message);
 
-        WebSocketUtils.sendMessageAll(roomId, messages);
+        WebSocketUtils.sendMessageAll(userId);
+        System.out.println("Connected: " + session.getId() + "[" + userId + "]");
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        System.out.println("Disconnected: " + session.getId());
-        String nickName = (String) session.getAttributes().get("nickName");
         String userId = (String) session.getAttributes().get("userId");
-        String roomId = (String) session.getAttributes().get("roomId");
         //当前的Session 移除
         WebSocketUtils.ONLINE_USER_SESSIONS.remove(userId);
-        Set<User> userSet = WebSocketUtils.ROOM_USER_SET.getOrDefault(roomId, new HashSet<>());
-        if (userSet.size() > 0) {
-            User user = new User();
-            user.setId(userId);
-            user.setNickName(nickName);
-            user.setRoomId(roomId);
-            userSet.remove(user);
-            WebSocketUtils.ROOM_USER_SET.put(roomId, userSet);
-        }
-
-        //并且通知其他人当前用户已经离开聊天室了
-        String message = "用户[" + userId + "]离开房间[" + roomId + "]";
-        Map<String, Object> messages = new HashMap<>();
-        messages.put("type", "leave");
-        messages.put("roomId", roomId);
-        messages.put("userId", userId);
-        messages.put("users", userSet);
-        messages.put("content", message);
-        WebSocketUtils.sendMessageAll(roomId, messages);
-        log.info("消息：" + message);
         try {
             session.close();
         } catch (IOException e) {
             log.error("onClose error", e);
         }
+        System.out.println("Disconnected: " + session.getId() + "[" + userId + "]");
+    }
+
+    //处理邀请进入房间
+    private void inviteRoom(User user) {
+        Set<User> userSet = WebSocketUtils.ROOM_USER_SET.getOrDefault(user.getRoomId(), new HashSet<>());
+        WebSocketUtils.ROOM_USER_SET.put(user.getRoomId(), userSet);
+        String message =
+                "用户[" + user.getUserId() + "]邀请[" + user.getTargetUserId() + "]进入房间[" + user.getRoomId() + "]用户总数：" + userSet.size();
+        Map<String, Object> messages = new HashMap<>();
+        messages.put("type", "invite");
+        messages.put("roomId", user.getRoomId());
+        messages.put("userId", user.getUserId());
+        messages.put("targetUserId", user.getTargetUserId());
+        messages.put("users", userSet);
+        messages.put("content", message);
+       // WebSocketUtils.sendMessageAll(messages);
+        log.info(message);
+    }
+
+    private void joinRoom(User user) {
+        Set<User> userSet = WebSocketUtils.ROOM_USER_SET.getOrDefault(user.getRoomId(), new HashSet<>());
+        userSet.add(user);
+        WebSocketUtils.ROOM_USER_SET.put(user.getRoomId(), userSet);
+        String message = "用户[" + user.getUserId() + "]进入了房间[" + user.getRoomId() + "]用户总数：" + userSet.size();
+        Map<String, Object> messages = new HashMap<>();
+        messages.put("type", "join");
+        messages.put("roomId", user.getRoomId());
+        messages.put("userId", user.getUserId());
+        messages.put("users", userSet);
+        messages.put("content", message);
+        WebSocketUtils.sendMessageAll(user.getRoomId(), messages);
+        log.info(message);
+    }
+
+    private void leaveRoom(User user) {
+        Set<User> userSet = WebSocketUtils.ROOM_USER_SET.getOrDefault(user.getRoomId(), new HashSet<>());
+        userSet.remove(user);
+        //并且通知其他人当前用户已经离开聊天室了
+        String message = "用户[" + user.getUserId() + "]离开房间[" + user.getRoomId() + "]";
+        Map<String, Object> messages = new HashMap<>();
+        messages.put("type", "leave");
+        messages.put("roomId", user.getRoomId());
+        messages.put("userId", user.getUserId());
+        messages.put("users", userSet);
+        messages.put("content", message);
+        WebSocketUtils.sendMessageAll(messages);
+        log.info("消息：" + message);
     }
 }
