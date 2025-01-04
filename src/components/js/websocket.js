@@ -1,9 +1,8 @@
 import { userStore } from "@/store/store.js";
 let ws;
 
-export const initWebsocket = () => {
+export const openWebSocket = () => {
   let uStore = userStore();
-  let roomId = uStore.roomId;
   let userId = uStore.userId;
   let nickName = uStore.nickName;
   // 获取websocket地址
@@ -12,9 +11,7 @@ export const initWebsocket = () => {
   //拼接websocket地址
   let webSocketURL =
     apiUrl +
-    "?roomId=" +
-    roomId +
-    "&userId=" +
+    "?userId=" +
     userId +
     "&nickName=" +
     nickName;
@@ -43,19 +40,33 @@ export const initWebsocket = () => {
   };
 };
 // 发送消息
-export const sendMessage = (type, targetUserId, message) => {
+export const sendMessage = (message) => {
   if (ws && ws.readyState === WebSocket.OPEN) {
-    let map = {
-      type: type,
-      targetUserId: targetUserId,
-      content: message,
-    };
-    ws.send(JSON.stringify(map));
+    ws.send(JSON.stringify(message));
   }
 };
+
+
 // WebSocket心跳
+let heartBeatInterval;
 let heartBeat = () => {
-  setInterval(() => {
-    sendMessage("heart", "", "心跳");
+   heartBeatInterval= setInterval(() => {
+    let message = {
+      type: "heart",
+      userId: userStore().userId,
+      content: "心跳",
+  }
+    sendMessage(message);
   }, 10000);
+};
+// 断开连接
+export const closeWebSocket = () => {
+  if (ws) {
+    // 关闭 WebSocket 连接
+    ws.close();
+    console.log("websocket连接已断开");
+  }
+  // 清除心跳定时器
+  clearInterval(heartBeatInterval);
+  console.log("心跳定时器已清除");
 };

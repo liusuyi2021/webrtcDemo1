@@ -65,7 +65,7 @@
 </template>
 <script setup lang="ts">
 import { ref, nextTick, watch } from 'vue';
-import { initWebsocket, sendMessage } from './js/websocket.js';
+import { openWebSocket, sendMessage } from './js/websocket.js';
 import { userStore, sdpStore, iceStore } from '@/store/store.js';
 
 const hoster = ref(false);//主持人
@@ -116,8 +116,8 @@ let selectUser = async (user) => {
 let enterRoom = async () => {
     callButtonShow.value = true;
     uStore.setWSConfig(room.value, user.value, nickName.value)
-    initWebsocket();
-  
+    openWebSocket();
+
 }
 //监听到用户变化后取本地流播放
 watch(users, async (newValue, oldValue) => {
@@ -169,7 +169,14 @@ let callRemote = async () => {
 //同意视频通话
 let acceptCall = async () => {
     answerButtonShow.value = false;
-    sendMessage("accept", userTarget.value, "同意视频通话");
+    let message = {
+        type: "accept",
+        roomId: room.value,
+        userId: user.value,
+        targetUserId: userTarget.value,
+        content: "同意视频通话",
+    }
+    sendMessage(message);
 }
 
 //创建发送offer
@@ -193,14 +200,21 @@ let createOffer = async (userId) => {
                     console.log("Using TURN server for media relay.");
                 }
                 console.log("用户" + user.value + "生成并发送至用户" + userId + "offerCandidate", event.candidate);
-                sendMessage("offerCandidate", userId, JSON.stringify(event.candidate));
+                let message = {
+                    type: "offerCandidate",
+                    roomId: room.value,
+                    userId: user.value,
+                    targetUserId: userTarget.value,
+                    content: JSON.stringify(event.candidate),
+                }
+                sendMessage(message);
             }, 10);
 
         }
     }
     //监听onaddstream来获取对方的音视频流
     peerConnections[userId].onaddstream = (event) => {
-         nextTick(); // 等待 Vue 更新 DOM
+        nextTick(); // 等待 Vue 更新 DOM
         console.log("用户" + user.value + "收到对方" + userId + "音视频流", event.stream);
         const videoElement = document.getElementById(`userVideo-${userId}`) as HTMLVideoElement | null;
         if (videoElement) {
@@ -229,7 +243,14 @@ let createOffer = async (userId) => {
     offerSdp = JSON.stringify(offer);
 
     //发送websocket
-    sendMessage("offer", userId, JSON.stringify(offer));
+    let message = {
+                    type: "offer",
+                    roomId: room.value,
+                    userId: user.value,
+                    targetUserId: userTarget.value,
+                    content: JSON.stringify(offer),
+                }
+    sendMessage(message);
     console.log("用户" + user.value + "生成并发送至用户" + userId + "offer", offer);
 }
 
@@ -251,12 +272,19 @@ let createAnswer = async (userId) => {
         if (event.candidate) {
             setTimeout(() => {
                 if (event.candidate.candidate.includes("relay")) {
-                console.log("Using TURN server for media relay.");
-            }
-            console.log("用户" + user.value + "生成并发送至用户" + userId + "answerCandidate", event.candidate);
-            sendMessage("answerCandidate", userId, JSON.stringify(event.candidate));
+                    console.log("Using TURN server for media relay.");
+                }
+                console.log("用户" + user.value + "生成并发送至用户" + userId + "answerCandidate", event.candidate);
+                let message = {
+                    type: "answerCandidate",
+                    roomId: room.value,
+                    userId: user.value,
+                    targetUserId: userTarget.value,
+                    content: JSON.stringify(event.candidate),
+                }
+                sendMessage(message);
             }, 10);
-            
+
         }
     }
     //监听onaddstream来获取对方的音视频流
@@ -293,7 +321,14 @@ let createAnswer = async (userId) => {
     answerSdp = JSON.stringify(answer);
 
     //发送answer
-    sendMessage("answer", userId, JSON.stringify(answer));
+    let message = {
+                    type: "answer",
+                    roomId: room.value,
+                    userId: user.value,
+                    targetUserId: userTarget.value,
+                    content: JSON.stringify(answer),
+                }
+    sendMessage(message);
     console.log("用户" + user.value + "生成并发送至用户" + userId + "answer", answer)
 }
 
@@ -328,7 +363,14 @@ let disconnect = async (userId) => {
     callButtonShow.value = true;
     answerButtonShow.value = false;
     disconnectButtonShow.value = false;
-    sendMessage("disconnect", "", "disconnect");
+    let message = {
+                    type: "disconnect",
+                    roomId: room.value,
+                    userId: user.value,
+                    targetUserId: userTarget.value,
+                    content: "disconnect",
+                }
+    sendMessage(message);
 }
 
 //分享屏幕

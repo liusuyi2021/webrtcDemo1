@@ -21,7 +21,6 @@ export const userStore = defineStore("store", {
     },
     setUsers(users) {
       this.list = users;
-      console.log(this.list);
     },
     addUser(item) {
       this.list.push(item);
