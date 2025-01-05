@@ -32,10 +32,10 @@
                             <p>用户列表[房间号：{{ room }}]</p>
                             <div class="user-list">
                                 <ul v-infinite-scroll="load" class="infinite-list" style="overflow: auto">
-                                    <li class="infinite-list-item" v-for="user in uStore.list"
-                                        :class="{ selected: user === selectedUser }" @click="selectUser(user)"
-                                        :key="user.id">{{
-                                            user.nickName }}</li>
+                                    <li class="infinite-list-item" v-for="userId in uStore.getUsers"
+                                        :class="{ selected: userId === selectedUser }" @click="selectUser(userId)"
+                                        :key="userId">{{
+                                            userId }}</li>
                                 </ul>
                             </div>
                         </div>
@@ -55,6 +55,7 @@
                         </div>
                     </el-col>
                     <el-col>
+                        <el-button id="create-room" type="primary" round @click="createRoom">创建房间</el-button>
                         <div style="padding: 10px; display: flex; align-items: center; gap: 10px;">
                             <el-input v-model="room" vlue="1" placeholder="请输入房间号" style="flex: 1;" />
                             <el-button id="enter-room" type="primary" round @click="joinRoom"> {{ isInRoom ? "离开" :
@@ -62,9 +63,9 @@
                         </div>
                         <div style="padding: 10px; display: flex; align-items: center; gap: 10px;">
                             <el-input v-model="userTarget" vlue="1" placeholder="请输入邀请人：" style="flex: 1;"
-                                v-if="inviteButtonShow" />
+                                v-if="isInRoom" />
                             <el-button id="invite-room" type="primary" round @click="inviteRoom"
-                                v-if="inviteButtonShow">邀请</el-button>
+                                v-if="isInRoom">邀请</el-button>
                         </div>
                         <div style="padding: 10px">
 
@@ -77,7 +78,7 @@
                     <el-col>
                         <div style="padding: 10px">
                             <el-button id="create-offer" type="success" round icon="phone" v-if="callButtonShow"
-                                @click="callRemote">拨打</el-button>
+                                @click="call">拨打</el-button>
                             <el-button id="create-answer" type="danger" round icon="phone" v-if="answerButtonShow"
                                 @click="acceptCall">接听</el-button>
                             <el-button id="disconnect" type="danger" round icon="phone" v-if="disconnectButtonShow"
@@ -97,19 +98,21 @@
         </el-col>
     </el-row>
 </template>
+
 <script setup lang="ts">
 import { ref } from 'vue';
 import { openWebSocket, closeWebSocket, sendMessage } from './js/websocket.js';
 import { userStore, sdpStore, iceStore } from '@/store/store.js';
 import RecordRTC from 'recordrtc';
+import { dataType } from 'element-plus/es/components/table-v2/src/common.js';
+
 const sendText = ref('')
 const uStore = userStore();
 const sStore = sdpStore();
 const iStore = iceStore();
 let offerSdp = sStore.offerSdp;
 let answerSdp = sStore.answerSdp;
-let offerCandidate = iStore.offerCandidate;
-let answerCandidate = iStore.answerCandidate;
+let candidate = iStore.iceCandidate;
 
 const room = ref('')//房间号
 const user = ref('')//用户
@@ -117,6 +120,7 @@ const userTarget = ref('')//目标用户
 const nickName = ref('') //用户姓名
 let selectedUser = ref() //选中用户
 let connect = ref() //连接websocket按钮
+
 //录像
 const localRecordRTC = ref(null);
 const remoteRecordRTC = ref(null);
@@ -139,8 +143,6 @@ let remoteVideo = ref()//远程视频元素
 
 let changeValue = ref("共享屏幕")
 
-let caller = ref(false);//发起方
-let called = ref(false);//被叫方
 let calling = ref(false);//呼叫中
 let communicating = ref(false);//正在通话
 let detectStream = ref(false);//检测流是否存在
@@ -152,6 +154,7 @@ let disconnectButtonShow = ref(false);//挂断按钮显示
 let inviteButtonShow = ref(false);//邀请按钮显示
 let isConnect = ref(false);//是否连接
 let isInRoom = ref(false);  // 用户是否已进入房间
+
 //连接websocket
 let connectWss = async () => {
     if (!isConnect.value) {
@@ -165,19 +168,30 @@ let connectWss = async () => {
     }
 }
 
+//创建房间
+let createRoom = () => {
+    let message = {
+        type: "createRoom",
+    }
+    sendMessage(message);
+    isInRoom.value = true;
+}
+
 //进入房间
 let joinRoom = () => {
     if (!isInRoom.value) {
         inviteButtonShow.value = true
         callButtonShow.value = true
         let message = {
-            type: "join",
-            roomId: room.value,
-            userId: user.value,
-            content: "进入房间",
+            type: "joinRoom",
+            data: {
+                roomId: room.value,
+                userId: user.value,
+            }
         }
         sendMessage(message);
         isInRoom.value = true;
+        console.log(user.value + "进入了房间")
     }
     else {
         inviteButtonShow.value = false
@@ -185,18 +199,21 @@ let joinRoom = () => {
         isInRoom.value = false;
     }
 }
+
 //离开房间
 let leaveRoom = () => {
     callButtonShow.value = false
     let message = {
-        type: "leave",
-        roomId: room.value,
-        userId: user.value,
-        content: "离开房间",
+        type: "leaveRoom",
+        data: {
+            roomId: room.value,
+            userId: user.value,
+        }
     }
     sendMessage(message);
 
 }
+
 //邀请进入房间
 let inviteRoom = () => {
     if (user.value === userTarget.value) {
@@ -204,17 +221,19 @@ let inviteRoom = () => {
         return;
     }
     let message = {
-        type: "invite",
-        roomId: room.value,
-        userId: user.value,
-        targetUserId: userTarget.value,
-        content: "邀请进入房间",
+        type: "inviteRoom",
+        data: {
+            roomId: room.value,
+            userId: userTarget.value,
+        }
     }
     sendMessage(message);
+    console.log("邀请" + userTarget.value + "进入房间")
 }
+
 //获取本地摄像头流
 let getLocalStream = async () => {
-    await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+    await navigator.mediaDevices.getUserMedia({ audio: false, video: true })
         .then(stream => {
             localVideo.value.srcObject = stream;
             localVideo.value.play();
@@ -229,13 +248,13 @@ let getLocalStream = async () => {
 }
 
 //创建RTCPeerConnection实例
-let createPeer = async () => {
+let createPeerConnection = async () => {
     peerConnection = new RTCPeerConnection({
         iceServers: [
             {
-                urls: 'turn:111.40.46.199:3478', // 替换为你自己的 TURN 服务器
-                username: 'admin', // TURN 服务器用户名
-                credential: '123456' // TURN 服务器密码
+                urls: 'turn:111.40.46.199:3478',
+                username: 'admin',
+                credential: '123456'
             }
         ]
     });
@@ -250,52 +269,28 @@ let createPeer = async () => {
         remoteDataChannel.onmessage = (event) => {
             console.log("收到对方消息：", event.data);
         }
-        remoteDataChannel.onopen = () => console.log("*** receive：", remoteDataChannel.readyState);
+        remoteDataChannel.onopen = () => console.log("receive：", remoteDataChannel.readyState);
         remoteDataChannel.onclose = () => {
-            console.log("*** receive：", remoteDataChannel.readyState);
+            console.log("receive：", remoteDataChannel.readyState);
         };
-
     }
 }
 
 let sendMsg = async () => {
     localDataChannel.send(sendText.value);
 }
+
 //请求视频通话
-let callRemote = async () => {
+let call = async () => {
     if (selectedUser.value) {
-        if (selectedUser.value.id === user.value) {
-            alert("不能呼叫自己")
-            return;
-        }
-        caller.value = true;//标识当前用户为发起方
-        calling.value = true;//表示正在呼叫
-        await getLocalStream();
-        userTarget.value = selectedUser.value.userId;
-        if (detectStream.value) {
-            let message = {
-                type: "call",
+        let message = {
+            type: "call",
+            data: {
                 roomId: room.value,
-                userId: user.value,
-                targetUserId: userTarget.value,
-                content: "请求视频通话",
+                userId: selectedUser.value, // 被呼叫的用户ID
             }
-            sendMessage(message);
         }
-        else {
-            let message = {
-                type: "call",
-                roomId: room.value,
-                userId: user.value,
-                targetUserId: userTarget.value,
-                content: "请求回拨视频通话",
-            }
-            sendMessage(message);
-            callback.value = true;
-        }
-    }
-    else {
-        alert("请选择用户")
+        sendMessage(message);
     }
 }
 
@@ -304,28 +299,26 @@ let acceptCall = async () => {
     answerButtonShow.value = false;
     let message = {
         type: "accept",
-        roomId: room.value,
-        userId: user.value,
-        targetUserId: userTarget.value,
-        content: "同意视频通话",
+        data: {
+            roomId: room.value,
+            userId: user.value
+        }
     }
     sendMessage(message);
-    if (callback.value) {
-        await getLocalStream();
-        createOffer();
-    }
 }
 
 //创建发送offer
 let createOffer = async () => {
-
     //创建自己的RTCPeerConnection
-    createPeer();
+    await createPeerConnection();
+
+    await getLocalStream();
 
     //添加本地音视频流
     if (localStream) {
-        //peerConnection.addStream(localStream)
+        console.log("添加本地音视频流");
         localStream.getTracks().forEach(track => {
+
             peerConnection.addTrack(track, localStream);
         });
     }
@@ -341,27 +334,44 @@ let createOffer = async () => {
                 if (event.candidate.type === 'relay' && event.candidate.port === 3478) {
                     console.log("使用了 TURN 服务器的 3478 端口：", event.candidate);
                 }
-                console.log("用户" + user.value + "生成并发送至用户" + userTarget.value + "offerCandidate", event.candidate);
+
                 let message = {
-                    type: "offerCandidate",
-                    roomId: room.value,
-                    userId: user.value,
-                    targetUserId: userTarget.value,
-                    content: JSON.stringify(event.candidate),
+                    type: "iceCandidate",
+                    data: {
+                        roomId: room.value,
+                        userId: user.value,
+                        signal: JSON.stringify(event.candidate),
+                    }
                 }
+                console.log("用户" + user.value + "生成并发送offerCandidate", message);
                 sendMessage(message);
             }, 10);
 
         }
     }
-    //监听onaddstream来获取对方的音视频流
-    peerConnection.onaddstream = (event) => {
-        console.log("用户" + user.value + "收到对方音视频流", event.stream);
+
+    peerConnection.addEventListener('track', (event) => {
+        console.log("用户" + user.value + "收到对方音视频流");
         communicating.value = true;
         calling.value = false;
-        remoteVideo.value.srcObject = event.stream;
-        remoteVideo.value.play();
-    }
+        // 遍历所有的流
+        event.streams.forEach(stream => {
+            stream.getTracks().forEach(track => {
+                if (track.kind === 'video') {
+                    // 处理视频轨道
+                    if (remoteVideo.value.srcObject !== stream) {
+                        remoteVideo.value.srcObject = stream;
+                        remoteVideo.value.play();
+                    }
+                } else if (track.kind === 'audio') {
+                    // 处理音频轨道
+                    const audio = new Audio();
+                    audio.srcObject = stream;
+                    audio.play();
+                }
+            });
+        });
+    });
 
     //创建offer
     const offer = await peerConnection.createOffer();
@@ -373,28 +383,31 @@ let createOffer = async () => {
     //发送websocket
     let message = {
         type: "offer",
-        roomId: room.value,
-        userId: user.value,
-        targetUserId: userTarget.value,
-        content: JSON.stringify(offer),
+        data: {
+            roomId: room.value,
+            userId: selectedUser.value,
+            signal: offerSdp,
+        }
     }
     sendMessage(message);
-    console.log("用户" + user.value + "生成并发送至用户" + userTarget.value + "offer", offer);
+    console.log("用户" + user.value + "生成并发送offer", offer);
 }
 
 //创建发送answer
 let createAnswer = async () => {
     //创建自己的RTCPeerConnection
-    createPeer();
+    await createPeerConnection();
+
     //获取本地音视频流
     await getLocalStream();
+
     //添加本地音视频流
     if (localStream) {
-        //peerConnection.addStream(localStream);//已过时
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
         });
     }
+
     //通过监听onicecandidates事件来获取ICE候选信息
     peerConnection.onicecandidate = async (event) => {
         if (event.candidate) {
@@ -407,27 +420,21 @@ let createAnswer = async () => {
                 if (event.candidate.type === 'relay' && event.candidate.port === 3478) {
                     console.log("使用了 TURN 服务器的 3478 端口：", event.candidate);
                 }
-                console.log("用户" + user.value + "生成并发送至用户" + userTarget.value + "answerCandidate", event.candidate);
+
                 let message = {
-                    type: "answerCandidate",
-                    roomId: room.value,
-                    userId: user.value,
-                    targetUserId: userTarget.value,
-                    content: JSON.stringify(event.candidate),
+                    type: "iceCandidate",
+                    data: {
+                        roomId: room.value,
+                        userId: user.value,
+                        signal: JSON.stringify(event.candidate),
+                    }
                 }
                 sendMessage(message);
             }, 10);
 
         }
     }
-    //监听onaddstream来获取对方的音视频流
-    // peerConnection.onaddstream = (event) => {
-    //     console.log("用户" + user.value + "收到对方音视频流", event.stream);
-    //     communicating.value = true;
-    //     calling.value = false;
-    //     remoteVideo.value.srcObject = event.stream;
-    //     remoteVideo.value.play();
-    // }
+
     peerConnection.addEventListener('track', (event) => {
         console.log("用户" + user.value + "收到对方音视频流");
         communicating.value = true;
@@ -455,25 +462,14 @@ let createAnswer = async () => {
         });
     });
 
-    //监听addEventListener来获取对方的音视频流
-    // peerConnection.addEventListener('track', (event) => {
-    //     console.log("用户" + user.value + "收到对方音视频流");
-    //     communicating.value = true;
-    //     calling.value = false;
-    //     if (remoteVideo.value.srcObject !== event.streams[0]) {
-    //         remoteVideo.value.srcObject = event.streams[0];
-    //         remoteVideo.value.play();
-    //     }
-    // });
-
     //设置远端描述信息
     await peerConnection.setRemoteDescription(JSON.parse(offerSdp))
 
     //生成answer
     const answer = await peerConnection.createAnswer();
+
     //设置本地answer信息
     await peerConnection.setLocalDescription(answer);
-
 
     //显示answer
     answerSdp = JSON.stringify(answer);
@@ -481,17 +477,19 @@ let createAnswer = async () => {
     //发送answer
     let message = {
         type: "answer",
-        roomId: room.value,
-        userId: user.value,
-        targetUserId: userTarget.value,
-        content: JSON.stringify(answer),
+        data: {
+            roomId: room.value,
+            userId: user.value,
+            signal: answerSdp,
+        }
     }
     sendMessage(message);
-    console.log("用户" + user.value + "生成并发送至用户" + userTarget.value + "answer", answer)
+    console.log("用户" + user.value + "生成并发送answer", answer)
 }
 
 //设置远端answer信息
 let setAnswer = async () => {
+    console.log("用户" + user.value + "收到answer", JSON.parse(answerSdp));
     await peerConnection.setRemoteDescription(JSON.parse(answerSdp));
 }
 
@@ -557,6 +555,7 @@ let shareScreen = async () => {
         return false;
     }
 };
+
 let stopScreenShare = async () => {
     if (screenStream) {
         const tracks = screenStream.getTracks();
@@ -584,7 +583,6 @@ let videoCall = async () => {
         peerConnection.getSenders().find(sender => sender.track.kind === 'video')
             .replaceTrack(track)
     })
-
 };
 
 //切换视频通话和屏幕共享
@@ -611,148 +609,44 @@ let switchCall = async () => {
 //接收websocket数据
 let getWebsocketData = (e) => {
     let message = e.detail
-    let roomId = message.roomId;
-    let userId = message.userId;
     let type = message.type;
-    let users = message.users;
-    let targetUserId = message.targetUserId;
-    let content = message.content;
+    let data = message.data;
+    let roomId = data.roomId;
+    let userId = data.userId;
+    let signal = data.signal;
 
-    //判断是否是当前房间
     switch (type) {
-        case "invite":
-            if (user.value === targetUserId) {
-                console.log("收到" + userId + "进入房间" + roomId + "的邀请");
-                room.value = roomId;
-                joinRoom();
-            }
+        case "inviteRoom":
+            room.value = roomId;
+            joinRoom();
             break;
         case "call":
-            if (user.value === targetUserId) {
-                called.value = true;
-                calling.value = true;
-                answerButtonShow.value = true;
-                userTarget.value = userId; //请求用户作为目标用户
-                console.log("用户" + userId + "请求用户" + targetUserId + "视频通话");
-                if (content === "请求回拨视频通话") {
-                    callback.value = true;
-                }
-                callButtonShow.value = false;
-                disconnectButtonShow.value = true;
-            }
+            acceptCall();
             break;
         case "accept":
-            if (callback.value) {
-                if (caller.value) {
-                    //用户A收到用户B同意视频的请求
-                    console.log("用户" + userId + "同意回拨视频通话");
-                }
-            }
-            else {
-                if (caller.value) {
-                    //用户A收到用户B同意视频的请求
-                    console.log("用户" + userId + "同意视频通话");
-                    createOffer();
-                }
-            }
-            answerButtonShow.value = false;
-            disconnectButtonShow.value = true;
-            callButtonShow.value = false;
+            createOffer();
+            break;
+        case "roomCreated":
+            room.value = roomId;
+            break;
+        case "userJoined":
+            uStore.addUser(userId);
+            callButtonShow.value = true;
+            break;
+        case "userLeft":
+            uStore.removeUser(userId);
             break;
         case "offer":
-        console.log("offer");
-            offerSdp = content;
-            if (callback.value) {
-                if (caller.value) {
-                    console.log("接收到用户" + userId + "的offer", JSON.parse(offerSdp));
-                    createAnswer();
-                }
-            } else {
-                //用户B收到用户A的offer
-                if (called.value) {
-                    console.log("接收到用户" + userId + "的offer", JSON.parse(offerSdp));
-                    createAnswer();
-                }
-            }
-
+            offerSdp = signal;
+            createAnswer();
             break;
         case "answer":
-
-            answerSdp = content;
-            if (callback.value) {
-                if (called.value) {
-                    console.log("接收到用户" + userId + "的answer", JSON.parse(answerSdp));
-                    setAnswer();
-                }
-            }
-            else {
-                //用户B收到用户A的answer
-                if (caller.value) {
-                    console.log("接收到用户" + userId + "的answer", JSON.parse(answerSdp));
-                    setAnswer();
-                }
-            }
+            answerSdp = signal;
+            setAnswer();
             break;
-        case "answerCandidate":
-            answerCandidate = content;
-            if (callback.value) {
-                if (called.value) {
-                    console.log("接收到1用户" + userId + "的candidate", JSON.parse(answerCandidate));
-                    setCandidate(answerCandidate);
-                }
-            } else {
-                if (caller.value) {
-                    console.log("接收到1用户" + userId + "的candidate", JSON.parse(answerCandidate));
-                    setCandidate(answerCandidate);
-                }
-            }
-            break;
-        case "offerCandidate":
-            offerCandidate = content;
-            if (callback.value) {
-                if (caller.value) {
-                    console.log("接收到用户" + userId + "的candidate", JSON.parse(offerCandidate));
-                    setCandidate(offerCandidate);
-                }
-            }
-            else {
-                if (called.value) {
-                    console.log("接收到用户" + userId + "的candidate", JSON.parse(offerCandidate));
-                    setCandidate(offerCandidate);
-                }
-            }
-            break;
-        case "heart":
-            break;
-        case "disconnect":
-            // 关闭RTC连接
-            if (peerConnection) {
-                peerConnection.close();
-            }
-
-            // 清理DOM元素和相关变量
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-            }
-            if (remoteStream) {
-                remoteStream.getTracks().forEach(track => track.stop());
-            }
-            // 重置按钮状态
-            callButtonShow.value = true;
-            answerButtonShow.value = false;
-            disconnectButtonShow.value = false;
-            break;
-        case "join":
-            uStore.setUsers(users)
-            if (user.value === userId) {
-                isInRoom.value = true;
-            }
-            break;
-        case "leave":
-            uStore.setUsers(users)
-            if (user.value === userId) {
-                isInRoom.value = false;
-            }
+        case "iceCandidate":
+            candidate = signal;
+            setCandidate(candidate);
             break;
     }
 }
@@ -764,10 +658,11 @@ const load = () => {
 }
 //选择用户
 let selectUser = async (user) => {
+    console.log("选择用户:" + user);
     selectedUser.value = user;
 }
 
-/*********************************************/
+/********************webrtcStreamer*********************/
 let realViewCam = async () => {
     //@ts-ignore
     webRtcServer = new WebRtcStreamer(localVideo.value, "https://192.168.1.227:8083");
@@ -877,6 +772,7 @@ const remoteSnap = async () => {
         URL.revokeObjectURL(url);
     }, 'image/jpeg');
 }
+
 /**
  * @param {Blob} file - File or Blob object.
  * @param {function} callback - Callback function.
@@ -914,6 +810,7 @@ const getSeekableBlob = async (inputBlob, mediaType, callback) => {
     fileReader.readAsArrayBuffer(inputBlob)
 }
 </script>
+
 <style scoped>
 .video-call-container {
     display: flex;

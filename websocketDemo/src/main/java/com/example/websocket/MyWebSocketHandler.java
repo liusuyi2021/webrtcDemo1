@@ -31,9 +31,10 @@ public class MyWebSocketHandler extends TextWebSocketHandler {
         String userId = (String) session.getAttributes().get("userId");
         String nickName = (String) session.getAttributes().get("nickName");
         String content = (String) jsonMap.get("content");
+        User user;
         switch (type) {
             case "invite":
-                User user = new User(userId, nickName, roomId, targetUserId);
+                user = new User(userId, nickName, roomId, targetUserId);
                 inviteRoom(user);
                 break;
             case "join":

@@ -7,6 +7,7 @@
 <script setup>
 import phone2v2 from './components/Phone2v2.vue';
 import phone1v1 from './components/Phone1v1.vue';
+import phone1v12 from './components/Phone1v12.vue';
 import phone from './components/Phone.vue';
 import checkTurn from './components/checkTurn.vue';
 </script>
