@@ -38,13 +38,13 @@ public class SignalHandler extends TextWebSocketHandler {
                 handleCall(session, callData);
                 break;
             case "accept":
-                HandleAcceptData acceptData = JSON.parseObject(JSON.toJSONString(msg.getData()),
-                        HandleAcceptData.class);
+                AcceptData acceptData = JSON.parseObject(JSON.toJSONString(msg.getData()),
+                        AcceptData.class);
                 handleAccept(session, acceptData);
                 break;
             case "hungUp":
-                HandleHungUpData hungUpData = JSON.parseObject(JSON.toJSONString(msg.getData()),
-                        HandleHungUpData.class);
+                HungUpData hungUpData = JSON.parseObject(JSON.toJSONString(msg.getData()),
+                        HungUpData.class);
                 handleHungUp(session, hungUpData);
                 break;
             case "createRoom":
@@ -53,11 +53,6 @@ public class SignalHandler extends TextWebSocketHandler {
             case "joinRoom":
                 JoinRoomData joinRoomData = JSON.parseObject(JSON.toJSONString(msg.getData()), JoinRoomData.class);
                 handleJoinRoom(session, joinRoomData);
-                break;
-            case "inviteRoom":
-                InviteRoomData inviteRoomData = JSON.parseObject(JSON.toJSONString(msg.getData()),
-                        InviteRoomData.class);
-                handleInviteRoom(inviteRoomData);
                 break;
             case "leaveRoom":
                 JoinRoomData leaveRoomData = JSON.parseObject(JSON.toJSONString(msg.getData()), JoinRoomData.class);
@@ -68,6 +63,10 @@ public class SignalHandler extends TextWebSocketHandler {
             case "iceCandidate":
                 SignalData signalData = JSON.parseObject(JSON.toJSONString(msg.getData()), SignalData.class);
                 handleSignal(session, signalData, msg.getType());
+                break;
+            case "heart":
+                HeartData heartData = JSON.parseObject(JSON.toJSONString(msg.getData()), HeartData.class);
+                System.out.println("receive heart: " + heartData.getUserId());
                 break;
             default:
                 System.out.println("Unknown message type: " + msg.getType());
@@ -90,7 +89,7 @@ public class SignalHandler extends TextWebSocketHandler {
     }
 
     // 处理同意
-    private void handleAccept(WebSocketSession session, HandleAcceptData data) {
+    private void handleAccept(WebSocketSession session, AcceptData data) {
         String roomId = data.getRoomId();
         // 通知房间其他用户
         broadcastMessage(roomId, new WebSocketMessage("accept", data), session);
@@ -98,7 +97,7 @@ public class SignalHandler extends TextWebSocketHandler {
     }
 
     // 处理挂断
-    private void handleHungUp(WebSocketSession session, HandleHungUpData data) {
+    private void handleHungUp(WebSocketSession session, HungUpData data) {
         String roomId = data.getRoomId();
         // 通知房间其他用户
         broadcastMessage(roomId, new WebSocketMessage("hungUp", data), session);
@@ -125,12 +124,6 @@ public class SignalHandler extends TextWebSocketHandler {
 
         // 通知房间其他用户
         broadcastMessage(roomId, new WebSocketMessage("userJoined", data), session);
-    }
-
-    // 处理邀请进入房间
-    private void handleInviteRoom(InviteRoomData data) {
-        String userId = data.getUserId();
-        sendMessageToUser(userId, new WebSocketMessage("inviteRoom", data));
     }
 
     // 处理离开房间

@@ -12,8 +12,6 @@ import javax.annotation.Resource;
 public class WebSocketConfig implements WebSocketConfigurer {
 
     @Resource
-    private MyWebSocketHandler myWebSocketHandler;
-    @Resource
     private SignalHandler signalHandler;
 
     @Override

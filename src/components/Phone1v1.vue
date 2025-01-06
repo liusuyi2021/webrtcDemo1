@@ -188,7 +188,6 @@ let joinOrLeaveRoom = () => {
 
 //进入房间
 let joinRoom = () => {
-    callButtonShow.value = true
     let message = {
         type: "joinRoom",
         data: {
@@ -614,6 +613,7 @@ let getWebsocketData = (e) => {
             answerButtonShow.value = true;
             hungUptButtonShow.value = true;
             room.value = roomId;
+            joinRoom();
             break;
         case "accept":
             createOffer();

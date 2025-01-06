@@ -53,8 +53,9 @@ let heartBeat = () => {
    heartBeatInterval= setInterval(() => {
     let message = {
       type: "heart",
-      userId: userStore().userId,
-      content: "心跳",
+      data:{
+        userId: userStore().userId,
+      }
   }
     sendMessage(message);
   }, 10000);

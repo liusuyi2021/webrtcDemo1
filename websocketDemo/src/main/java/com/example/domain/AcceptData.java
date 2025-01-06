@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class InviteRoomData {
+public class AcceptData {
     private String roomId; // 房间ID
     private String userId; // 用户ID
 }
