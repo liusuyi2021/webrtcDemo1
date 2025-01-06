@@ -2,7 +2,7 @@ package com.example.websocket;
 
 import com.alibaba.fastjson2.JSON;
 import com.example.domain.*;
-import com.example.util.WebSocketUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -12,6 +12,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Slf4j
 @Component
 public class SignalHandler extends TextWebSocketHandler {
 
@@ -34,11 +35,17 @@ public class SignalHandler extends TextWebSocketHandler {
         switch (msg.getType()) {
             case "call":
                 CallData callData = JSON.parseObject(JSON.toJSONString(msg.getData()), CallData.class);
-                handleCall(callData);
+                handleCall(session, callData);
                 break;
             case "accept":
-                AcceptData acceptData = JSON.parseObject(JSON.toJSONString(msg.getData()), AcceptData.class);
-                handleAccept(acceptData);
+                HandleAcceptData acceptData = JSON.parseObject(JSON.toJSONString(msg.getData()),
+                        HandleAcceptData.class);
+                handleAccept(session, acceptData);
+                break;
+            case "hungUp":
+                HandleHungUpData hungUpData = JSON.parseObject(JSON.toJSONString(msg.getData()),
+                        HandleHungUpData.class);
+                handleHungUp(session, hungUpData);
                 break;
             case "createRoom":
                 handleCreateRoom(session);
@@ -48,7 +55,8 @@ public class SignalHandler extends TextWebSocketHandler {
                 handleJoinRoom(session, joinRoomData);
                 break;
             case "inviteRoom":
-                InviteRoomData inviteRoomData = JSON.parseObject(JSON.toJSONString(msg.getData()), InviteRoomData.class);
+                InviteRoomData inviteRoomData = JSON.parseObject(JSON.toJSONString(msg.getData()),
+                        InviteRoomData.class);
                 handleInviteRoom(inviteRoomData);
                 break;
             case "leaveRoom":
@@ -75,21 +83,32 @@ public class SignalHandler extends TextWebSocketHandler {
     }
 
     // 处理呼叫
-    private void handleCall(CallData data) {
+    private void handleCall(WebSocketSession session, CallData data) {
         String userId = data.getUserId();
         sendMessageToUser(userId, new WebSocketMessage("call", data));
+        log.info("用户{}呼叫用户{}", session.getAttributes().get("userId"), userId);
     }
+
     // 处理同意
-    private void handleAccept(AcceptData data) {
-        String userId = data.getUserId();
-        sendMessageToUser(userId, new WebSocketMessage("accept", data));
+    private void handleAccept(WebSocketSession session, HandleAcceptData data) {
+        String roomId = data.getRoomId();
+        // 通知房间其他用户
+        broadcastMessage(roomId, new WebSocketMessage("accept", data), session);
+        log.info("用户{}回复同意", session.getAttributes().get("userId"));
     }
+
+    // 处理挂断
+    private void handleHungUp(WebSocketSession session, HandleHungUpData data) {
+        String roomId = data.getRoomId();
+        // 通知房间其他用户
+        broadcastMessage(roomId, new WebSocketMessage("hungUp", data), session);
+    }
+
     // 处理创建房间
     private void handleCreateRoom(WebSocketSession session) {
         String roomId = UUID.randomUUID().toString();
         rooms.put(roomId, ConcurrentHashMap.newKeySet());
         rooms.get(roomId).add(session);
-
         // 回复房间创建成功消息
         sendMessage(session, new WebSocketMessage("roomCreated", new CreateRoomData(roomId)));
     }
@@ -113,6 +132,7 @@ public class SignalHandler extends TextWebSocketHandler {
         String userId = data.getUserId();
         sendMessageToUser(userId, new WebSocketMessage("inviteRoom", data));
     }
+
     // 处理离开房间
     private void handleLeaveRoom(WebSocketSession session, JoinRoomData data) {
         String roomId = data.getRoomId();

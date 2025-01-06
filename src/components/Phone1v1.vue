@@ -58,17 +58,14 @@
                         <el-button id="create-room" type="primary" round @click="createRoom">创建房间</el-button>
                         <div style="padding: 10px; display: flex; align-items: center; gap: 10px;">
                             <el-input v-model="room" vlue="1" placeholder="请输入房间号" style="flex: 1;" />
-                            <el-button id="enter-room" type="primary" round @click="joinRoom"> {{ isInRoom ? "离开" :
-                                "进入" }}</el-button>
+                            <el-button type="primary" round @click="joinOrLeaveRoom"> {{ isInRoom ? "离开房间" :
+                                "进入房间" }}</el-button>
                         </div>
                         <div style="padding: 10px; display: flex; align-items: center; gap: 10px;">
                             <el-input v-model="userTarget" vlue="1" placeholder="请输入邀请人：" style="flex: 1;"
                                 v-if="isInRoom" />
-                            <el-button id="invite-room" type="primary" round @click="inviteRoom"
-                                v-if="isInRoom">邀请</el-button>
                         </div>
-                        <div style="padding: 10px">
-
+                        <div style="padding: 10px" v-if="isInCall">
                             <el-button id="switch-call" type="primary" round @click="switchCall">{{ changeValue
                                 }}</el-button>
                         </div>
@@ -81,8 +78,8 @@
                                 @click="call">拨打</el-button>
                             <el-button id="create-answer" type="danger" round icon="phone" v-if="answerButtonShow"
                                 @click="acceptCall">接听</el-button>
-                            <el-button id="disconnect" type="danger" round icon="phone" v-if="disconnectButtonShow"
-                                @click="disconnect">挂断</el-button>
+                            <el-button id="hungUp" type="danger" round icon="phone" v-if="hungUptButtonShow"
+                                @click="hungUp">挂断</el-button>
                         </div>
                     </el-col>
                 </el-row>
@@ -128,32 +125,32 @@ const localRecording = ref(false);
 const remoteRecording = ref(false);
 
 //webrtc-streamer
-let webRtcServer; //rtsp
-let webRtcServer1;//本地摄像头
+let webRtcServer;       //rtsp
+let webRtcServer1;      //本地摄像头
 
-let localStream;//本地流
-let screenStream;//共享屏幕流
-let remoteStream;//远程流
+let localStream;        //本地流
+let screenStream;       //共享屏幕流
+let remoteStream;       //远程流
 
-let peerConnection;//RTCPeerConnection实例
-let localDataChannel;//本地数据通道
-let remoteDataChannel;//远程数据通道
-let localVideo = ref()//本地视频元素
-let remoteVideo = ref()//远程视频元素
+let peerConnection;     //RTCPeerConnection实例
+let localDataChannel;   //本地数据通道
+let remoteDataChannel;  //远程数据通道
+let localVideo = ref()  //本地视频元素
+let remoteVideo = ref() //远程视频元素
 
 let changeValue = ref("共享屏幕")
 
-let calling = ref(false);//呼叫中
-let communicating = ref(false);//正在通话
-let detectStream = ref(false);//检测流是否存在
-let callback = ref(false); //回拨标志
+let calling = ref(false);       //呼叫中
+let communicating = ref(false); //正在通话
+let detectStream = ref(false);  //检测流是否存在
 
-let callButtonShow = ref(false);//拨号按钮显示
-let answerButtonShow = ref(false);//接听按钮显示
-let disconnectButtonShow = ref(false);//挂断按钮显示
-let inviteButtonShow = ref(false);//邀请按钮显示
-let isConnect = ref(false);//是否连接
+let callButtonShow = ref(false);    //拨号按钮显示
+let answerButtonShow = ref(false);  //接听按钮显示
+let hungUptButtonShow = ref(false); //挂断按钮显示
+
+let isConnect = ref(false); // 是否连接
 let isInRoom = ref(false);  // 用户是否已进入房间
+let isInCall = ref(false); // 用户是否正在通话
 
 //连接websocket
 let connectWss = async () => {
@@ -175,34 +172,39 @@ let createRoom = () => {
     }
     sendMessage(message);
     isInRoom.value = true;
+    callButtonShow.value = true
+}
+
+let joinOrLeaveRoom = () => {
+    if (isInRoom.value) {
+        isInRoom.value = false
+        leaveRoom()
+    }
+    else {
+        isInRoom.value = true
+        joinRoom
+    }
 }
 
 //进入房间
 let joinRoom = () => {
-    if (!isInRoom.value) {
-        inviteButtonShow.value = true
-        callButtonShow.value = true
-        let message = {
-            type: "joinRoom",
-            data: {
-                roomId: room.value,
-                userId: user.value,
-            }
+    callButtonShow.value = true
+    let message = {
+        type: "joinRoom",
+        data: {
+            roomId: room.value,
+            userId: user.value,
         }
-        sendMessage(message);
-        isInRoom.value = true;
-        console.log(user.value + "进入了房间")
     }
-    else {
-        inviteButtonShow.value = false
-        leaveRoom();
-        isInRoom.value = false;
-    }
+    sendMessage(message);
+    isInRoom.value = true;
+    console.log(user.value + "进入了房间")
 }
 
 //离开房间
 let leaveRoom = () => {
     callButtonShow.value = false
+    isInRoom.value = false;
     let message = {
         type: "leaveRoom",
         data: {
@@ -211,24 +213,7 @@ let leaveRoom = () => {
         }
     }
     sendMessage(message);
-
-}
-
-//邀请进入房间
-let inviteRoom = () => {
-    if (user.value === userTarget.value) {
-        alert("不能邀请自己")
-        return;
-    }
-    let message = {
-        type: "inviteRoom",
-        data: {
-            roomId: room.value,
-            userId: userTarget.value,
-        }
-    }
-    sendMessage(message);
-    console.log("邀请" + userTarget.value + "进入房间")
+    console.log(user.value + "离开了房间")
 }
 
 //获取本地摄像头流
@@ -282,20 +267,26 @@ let sendMsg = async () => {
 
 //请求视频通话
 let call = async () => {
-    if (selectedUser.value) {
-        let message = {
-            type: "call",
-            data: {
-                roomId: room.value,
-                userId: selectedUser.value, // 被呼叫的用户ID
-            }
+    callButtonShow.value = false;
+    hungUptButtonShow.value = true;
+    let message = {
+        type: "call",
+        data: {
+            roomId: room.value,
+            userId: userTarget.value
         }
-        sendMessage(message);
     }
+    sendMessage(message);
+    console.log("发送视频通话请求:" + JSON.stringify(message))
+    isInCall.value = true;
 }
 
 //同意视频通话
 let acceptCall = async () => {
+    //加入房间
+    joinRoom();
+
+    callButtonShow.value = false;
     answerButtonShow.value = false;
     let message = {
         type: "accept",
@@ -305,6 +296,7 @@ let acceptCall = async () => {
         }
     }
     sendMessage(message);
+
 }
 
 //创建发送offer
@@ -502,14 +494,12 @@ let setCandidate = async (event) => {
 }
 
 //挂断
-let disconnect = async () => {
+let hungUp = async () => {
     // 关闭RTC连接
     if (peerConnection) {
         peerConnection.close();
     }
-
     // 清理DOM元素和相关变量
-
     if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
     }
@@ -519,15 +509,18 @@ let disconnect = async () => {
     // 重置按钮状态
     callButtonShow.value = true;
     answerButtonShow.value = false;
-    disconnectButtonShow.value = false;
+    hungUptButtonShow.value = false;
+    isInCall.value = false;
     let message = {
-        type: "disconnect",
-        roomId: room.value,
-        userId: user.value,
-        targetUserId: userTarget.value,
-        content: "挂断了",
+        type: "hungUp",
+        data: {
+            roomId: room.value,
+            userId: user.value,
+        }
     }
     sendMessage(message);
+    console.log("挂断:" + JSON.stringify(message));
+    leaveRoom();
 }
 
 //分享屏幕
@@ -616,22 +609,38 @@ let getWebsocketData = (e) => {
     let signal = data.signal;
 
     switch (type) {
-        case "inviteRoom":
-            room.value = roomId;
-            joinRoom();
-            break;
         case "call":
-            acceptCall();
+            callButtonShow.value = false;
+            answerButtonShow.value = true;
+            hungUptButtonShow.value = true;
+            room.value = roomId;
             break;
         case "accept":
             createOffer();
             break;
-        case "roomCreated":
-            room.value = roomId;
+        case "hungUp":
+            // 关闭RTC连接
+            if (peerConnection) {
+                peerConnection.close();
+            }
+            // 清理DOM元素和相关变量
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            if (remoteStream) {
+                remoteStream.getTracks().forEach(track => track.stop());
+            }
+            // 重置按钮状态
+            callButtonShow.value = true;
+            answerButtonShow.value = false;
+            hungUptButtonShow.value = false;
+            leaveRoom();
             break;
         case "userJoined":
             uStore.addUser(userId);
-            callButtonShow.value = true;
+            break;
+        case "roomCreated":
+            room.value = roomId;
             break;
         case "userLeft":
             uStore.removeUser(userId);
