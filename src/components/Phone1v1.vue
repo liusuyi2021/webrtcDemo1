@@ -105,7 +105,6 @@ import { userStore, sdpStore, iceStore } from '@/store/store.js';
 import RecordRTC from 'recordrtc';
 import { dataType } from 'element-plus/es/components/table-v2/src/common.js';
 
-import { WebRTCPlayer } from '@eyevinn/webrtc-player';
 const sendText = ref('')
 const uStore = userStore();
 const sStore = sdpStore();
@@ -169,29 +168,7 @@ let connectWss = async () => {
         isConnect.value = false;
     }
 }
-let webrtcPlayer = async () => {
-    const player = new WebRTCPlayer({
-        video: localVideo.value,
-        type: 'whep',
-        statsTypeFilter: '^candidate-*|^inbound-rtp',
-    });
-    await player.load(new URL("http://192.168.1.27:8000/api/whep?url=lsy&options=rtptransport%3dtcp%26timeout%3d60"));
-    player.unmute();
 
-    player.on('no-media', () => {
-        console.log('media timeout occured');
-    });
-    player.on('media-recovered', () => {
-        console.log('media recovered');
-    });
-
-    // Subscribe for RTC stats: `stats:${RTCStatsType}`
-    player.on('stats:inbound-rtp', (report) => {
-        if (report.kind === 'audio') {
-            console.log(report);
-        }
-    });
-}
 //创建房间
 let createRoom = () => {
     let message = {
