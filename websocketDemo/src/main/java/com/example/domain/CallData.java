@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CallData {
-    private String roomId; // 房间ID
-    private String userId; // 用户ID
+    private String roomId;      // 房间ID
+    private String from;        // 用户ID
+    private String to;          // 目标用户ID
 }

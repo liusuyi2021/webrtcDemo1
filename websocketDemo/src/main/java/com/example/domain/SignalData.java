@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class SignalData {
     private String roomId; // 房间ID
-    private String userId; // 用户ID
+    private String from;   // 用户ID
+    private String to;     // 目标用户ID
     private String signal; // 信令数据
 }

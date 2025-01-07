@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
+    "@eyevinn/webrtc-player": "^0.13.0",
     "element-plus": "^2.7.6",
     "lodash": "^4.17.21",
     "map": "^1.0.1",

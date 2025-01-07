@@ -32,41 +32,52 @@ public class SignalHandler extends TextWebSocketHandler {
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         // 解析消息为 WebSocketMessage 实体
         WebSocketMessage msg = JSON.parseObject(message.getPayload(), WebSocketMessage.class);
+        String from = (String) session.getAttributes().get("userId");
         switch (msg.getType()) {
             case "call":
                 CallData callData = JSON.parseObject(JSON.toJSONString(msg.getData()), CallData.class);
+                callData.setFrom(from);
                 handleCall(session, callData);
                 break;
             case "accept":
                 AcceptData acceptData = JSON.parseObject(JSON.toJSONString(msg.getData()),
                         AcceptData.class);
+                acceptData.setFrom(from);
                 handleAccept(session, acceptData);
                 break;
             case "hungUp":
                 HungUpData hungUpData = JSON.parseObject(JSON.toJSONString(msg.getData()),
                         HungUpData.class);
+                hungUpData.setFrom(from);
                 handleHungUp(session, hungUpData);
                 break;
             case "createRoom":
-                handleCreateRoom(session);
+                CreateRoomData createRoomData = JSON.parseObject(JSON.toJSONString(msg.getData()),
+                        CreateRoomData.class);
+                createRoomData.setFrom(from);
+                handleCreateRoom(session, createRoomData);
                 break;
             case "joinRoom":
                 JoinRoomData joinRoomData = JSON.parseObject(JSON.toJSONString(msg.getData()), JoinRoomData.class);
+                joinRoomData.setFrom(from);
                 handleJoinRoom(session, joinRoomData);
                 break;
             case "leaveRoom":
                 JoinRoomData leaveRoomData = JSON.parseObject(JSON.toJSONString(msg.getData()), JoinRoomData.class);
+                leaveRoomData.setFrom(from);
                 handleLeaveRoom(session, leaveRoomData);
                 break;
             case "offer":
             case "answer":
             case "iceCandidate":
                 SignalData signalData = JSON.parseObject(JSON.toJSONString(msg.getData()), SignalData.class);
+                signalData.setFrom(from);
                 handleSignal(session, signalData, msg.getType());
                 break;
             case "heart":
                 HeartData heartData = JSON.parseObject(JSON.toJSONString(msg.getData()), HeartData.class);
-                System.out.println("receive heart: " + heartData.getUserId());
+                heartData.setFrom(from);
+                System.out.println("receive heart: " + heartData.getFrom());
                 break;
             default:
                 System.out.println("Unknown message type: " + msg.getType());
@@ -83,7 +94,7 @@ public class SignalHandler extends TextWebSocketHandler {
 
     // 处理呼叫
     private void handleCall(WebSocketSession session, CallData data) {
-        String userId = data.getUserId();
+        String userId = data.getTo();
         sendMessageToUser(userId, new WebSocketMessage("call", data));
         log.info("用户{}呼叫用户{}", session.getAttributes().get("userId"), userId);
     }
@@ -101,15 +112,18 @@ public class SignalHandler extends TextWebSocketHandler {
         String roomId = data.getRoomId();
         // 通知房间其他用户
         broadcastMessage(roomId, new WebSocketMessage("hungUp", data), session);
+        log.info("用户{}挂断了", session.getAttributes().get("userId"));
     }
 
     // 处理创建房间
-    private void handleCreateRoom(WebSocketSession session) {
+    private void handleCreateRoom(WebSocketSession session, CreateRoomData createRoomData) {
         String roomId = UUID.randomUUID().toString();
         rooms.put(roomId, ConcurrentHashMap.newKeySet());
         rooms.get(roomId).add(session);
         // 回复房间创建成功消息
-        sendMessage(session, new WebSocketMessage("roomCreated", new CreateRoomData(roomId)));
+        createRoomData.setRoomId(roomId);
+        sendMessage(session, new WebSocketMessage("roomCreated", createRoomData));
+        log.info("用户{}创建了房间{}", session.getAttributes().get("userId"), roomId);
     }
 
     // 处理加入房间
@@ -121,9 +135,11 @@ public class SignalHandler extends TextWebSocketHandler {
         }
 
         rooms.get(roomId).add(session);
-
+        String from = (String) session.getAttributes().get("userId");
+        data.setFrom(from);
         // 通知房间其他用户
         broadcastMessage(roomId, new WebSocketMessage("userJoined", data), session);
+        log.info("用户{}加入了房间{}", session.getAttributes().get("userId"), roomId);
     }
 
     // 处理离开房间
@@ -134,6 +150,7 @@ public class SignalHandler extends TextWebSocketHandler {
 
             // 通知房间其他用户
             broadcastMessage(roomId, new WebSocketMessage("userLeaved", data), session);
+            log.info("用户{}离开了房间{}", session.getAttributes().get("userId"), roomId);
         }
     }
 

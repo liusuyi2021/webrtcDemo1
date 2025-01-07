@@ -7,7 +7,9 @@
         <el-col :span="12">
             <div class="video-call-container">
                 <p>本地视频</p>
-                <video ref="localVideo" id="local-video"></video>
+                <video ref="localVideo" id="local-video" autoplay controls>
+                </video>
+
                 <div>
                     <el-button type="success" @click="startLocalRecording" :disabled="localRecording">开始录像</el-button>
                     <el-button type="danger" @click="stopLocalRecording" :disabled="!localRecording">停止录像</el-button>
@@ -103,6 +105,7 @@ import { userStore, sdpStore, iceStore } from '@/store/store.js';
 import RecordRTC from 'recordrtc';
 import { dataType } from 'element-plus/es/components/table-v2/src/common.js';
 
+import { WebRTCPlayer } from '@eyevinn/webrtc-player';
 const sendText = ref('')
 const uStore = userStore();
 const sStore = sdpStore();
@@ -152,23 +155,51 @@ let isConnect = ref(false); // 是否连接
 let isInRoom = ref(false);  // 用户是否已进入房间
 let isInCall = ref(false); // 用户是否正在通话
 
+
+
 //连接websocket
 let connectWss = async () => {
     if (!isConnect.value) {
         uStore.setWSConfig("", user.value, nickName.value)
-        openWebSocket(); //初始化websocket
-        isConnect.value = true;
+         openWebSocket(); //初始化websocket
+        isConnect.value = true; 
     }
     else {
         closeWebSocket();
         isConnect.value = false;
     }
 }
+let webrtcPlayer = async () => {
+    const player = new WebRTCPlayer({
+        video: localVideo.value,
+        type: 'whep',
+        statsTypeFilter: '^candidate-*|^inbound-rtp',
+    });
+    await player.load(new URL("http://192.168.1.27:8000/api/whep?url=lsy&options=rtptransport%3dtcp%26timeout%3d60"));
+    player.unmute();
 
+    player.on('no-media', () => {
+        console.log('media timeout occured');
+    });
+    player.on('media-recovered', () => {
+        console.log('media recovered');
+    });
+
+    // Subscribe for RTC stats: `stats:${RTCStatsType}`
+    player.on('stats:inbound-rtp', (report) => {
+        if (report.kind === 'audio') {
+            console.log(report);
+        }
+    });
+}
 //创建房间
 let createRoom = () => {
     let message = {
         type: "createRoom",
+        data: {
+            from: user.value,
+        }
+
     }
     sendMessage(message);
     isInRoom.value = true;
@@ -192,7 +223,7 @@ let joinRoom = () => {
         type: "joinRoom",
         data: {
             roomId: room.value,
-            userId: user.value,
+            from: user.value,
         }
     }
     sendMessage(message);
@@ -208,7 +239,7 @@ let leaveRoom = () => {
         type: "leaveRoom",
         data: {
             roomId: room.value,
-            userId: user.value,
+            from: user.value,
         }
     }
     sendMessage(message);
@@ -272,7 +303,8 @@ let call = async () => {
         type: "call",
         data: {
             roomId: room.value,
-            userId: userTarget.value
+            from: user.value,
+            to: userTarget.value
         }
     }
     sendMessage(message);
@@ -284,14 +316,14 @@ let call = async () => {
 let acceptCall = async () => {
     //加入房间
     joinRoom();
-
     callButtonShow.value = false;
     answerButtonShow.value = false;
     let message = {
         type: "accept",
         data: {
             roomId: room.value,
-            userId: user.value
+            from: user.value,
+            to: userTarget.value
         }
     }
     sendMessage(message);
@@ -330,7 +362,8 @@ let createOffer = async () => {
                     type: "iceCandidate",
                     data: {
                         roomId: room.value,
-                        userId: user.value,
+                        from: user.value,
+                        to: userTarget.value,
                         signal: JSON.stringify(event.candidate),
                     }
                 }
@@ -376,7 +409,8 @@ let createOffer = async () => {
         type: "offer",
         data: {
             roomId: room.value,
-            userId: selectedUser.value,
+            from: user.value,
+            to: selectedUser.value,
             signal: offerSdp,
         }
     }
@@ -416,7 +450,8 @@ let createAnswer = async () => {
                     type: "iceCandidate",
                     data: {
                         roomId: room.value,
-                        userId: user.value,
+                        from: user.value,
+                        to: userTarget.value,
                         signal: JSON.stringify(event.candidate),
                     }
                 }
@@ -470,7 +505,8 @@ let createAnswer = async () => {
         type: "answer",
         data: {
             roomId: room.value,
-            userId: user.value,
+            from: user.value,
+            to: userTarget.value,
             signal: answerSdp,
         }
     }
@@ -604,15 +640,17 @@ let getWebsocketData = (e) => {
     let type = message.type;
     let data = message.data;
     let roomId = data.roomId;
-    let userId = data.userId;
+    let userId = data.from;
+    let targetUserId = data.to;
     let signal = data.signal;
-
+    console.log("接收websocket数据:" + JSON.stringify(message));
     switch (type) {
         case "call":
             callButtonShow.value = false;
             answerButtonShow.value = true;
             hungUptButtonShow.value = true;
             room.value = roomId;
+            userTarget.value = userId;
             joinRoom();
             break;
         case "accept":
@@ -672,19 +710,15 @@ let selectUser = async (user) => {
 }
 
 /********************webrtcStreamer*********************/
-let realViewCam = async () => {
+let realViewCam = () => {
     //@ts-ignore
-    webRtcServer = new WebRtcStreamer(localVideo.value, "https://192.168.1.227:8083");
-    let rtspUrl = "rtsp://admin:ard511ar@112.98.126.2:21500/h264/ch1/main/av_stream";
-    let option = "rtptransport=udp";
-    webRtcServer.connect(rtspUrl, null, option, null);
-    //@ts-ignore
-    webRtcServer1 = new WebRtcStreamer(remoteVideo.value, "https://192.168.1.227:8083");
-    let rtspUrl1 = "videocap://0";
-    let option1 = "rtptransport=udp";
-    webRtcServer1.connect(rtspUrl1, null, option1, null);
+    webRtcServer = new WebRtcStreamer(localVideo.value, "http://192.168.1.27:8000");
+    let rtspUrl = "rtsp://ceshi:zdkj.2022@192.168.1.237:554/h264/ch1/main/av_stream";
+    let rtsp1Url = "rtsp://ceshi:zdkj.2022@192.168.1.237:554/h264/ch1/main/av_stream";
+    let option = "rtptransport=tcp";
+    webRtcServer.connect(rtspUrl, rtsp1Url, option);
 }
-let realViewCamClose = async () => {
+let realViewCamClose = () => {
     webRtcServer.disconnect();
     webRtcServer1.disconnect();
 }

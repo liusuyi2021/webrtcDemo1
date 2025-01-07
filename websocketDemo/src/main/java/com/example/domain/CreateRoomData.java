@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CreateRoomData {
     private String roomId; // 房间ID
+    private String from;
 }
 
 

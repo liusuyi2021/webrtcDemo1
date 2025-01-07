@@ -8,5 +8,5 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class HeartData {
-    private String userId; // 用户ID
+    private String from; // 用户ID
 }
