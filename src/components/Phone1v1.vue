@@ -291,8 +291,6 @@ let call = async () => {
 
 //同意视频通话
 let acceptCall = async () => {
-    //加入房间
-    joinRoom();
     callButtonShow.value = false;
     answerButtonShow.value = false;
     let message = {
@@ -359,12 +357,14 @@ let createOffer = async () => {
         event.streams.forEach(stream => {
             stream.getTracks().forEach(track => {
                 if (track.kind === 'video') {
+                    console.log("用户" + user.value + "收到对方视频流");
                     // 处理视频轨道
                     if (remoteVideo.value.srcObject !== stream) {
                         remoteVideo.value.srcObject = stream;
                         remoteVideo.value.play();
                     }
                 } else if (track.kind === 'audio') {
+                    console.log("用户" + user.value + "收到对方音频流");
                     // 处理音频轨道
                     const audio = new Audio();
                     audio.srcObject = stream;
@@ -510,6 +510,7 @@ let hungUp = async () => {
     // 关闭RTC连接
     if (peerConnection) {
         peerConnection.close();
+        peerConnection=null;
     }
     // 清理DOM元素和相关变量
     if (localStream) {
